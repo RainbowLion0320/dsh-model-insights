@@ -15,8 +15,9 @@ actually pick from, so a long model list stops being a memory test.
 - **Hovering** lists every effort explicitly: `max · IQ 62 · $4.00/task · S`, and so on.
 - A row whose own name carries an effort (`GPT-6.2 Astra (max)`) shows that single point instead of the
   range.
-- **A panel inside the model menu** sorts the whole captured set by grade, intelligence or cost, with
-  frontier picks listed at the bottom.
+- **A 「reasoning grades」 row inside the model menu** that follows the current selection only: it
+  lists every reasoning effort of the model you have picked, with its IQ, cost per task and grade.
+  Switching models updates the table; it never dumps the whole leaderboard.
 
 ## Data and coverage
 

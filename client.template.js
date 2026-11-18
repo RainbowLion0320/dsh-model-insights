@@ -140,6 +140,19 @@ window.__ModuleLoader__.load({
         .filter(Boolean)
         .join(' · ')
 
+
+    /** The last model the owner marked as selected; the menu panel reads this. */
+    const selection = { row: null, listeners: new Set() }
+    const publishSelection = (row) => {
+      if (selection.row === row) return
+      selection.row = row
+      for (const listener of [...selection.listeners]) listener()
+    }
+    const subscribeSelection = (listener) => {
+      selection.listeners.add(listener)
+      return () => selection.listeners.delete(listener)
+    }
+
     function makeBadge(t) {
       return function ModelInsightBadge(props) {
         const model = props && props.model
@@ -166,6 +179,7 @@ window.__ModuleLoader__.load({
         )
         const row = lookup(model.id, model.name)
         if (!row) return label
+        if (props.selected) publishSelection(row)
 
         // A row that names its effort (e.g. "GPT-6.2 Astra (max)") shows that
         // single point; otherwise the badge shows the whole range.
@@ -232,266 +246,128 @@ window.__ModuleLoader__.load({
     }
 
     function makePanel(t) {
-      const ROWS = 12
-      const order = { S: 0, A: 1, B: 2, C: 3, D: 4 }
-
-      /** One model row: click to expand its per-effort grades. */
-      function ModelRow(props) {
-        const row = props.row
-        const [expanded, setExpanded] = React.useState(!!props.defaultOpen)
-        const toggle = (event) => {
-          event.stopPropagation()
-          setExpanded(!expanded)
+      return function ModelInsightPanel() {
+        const [current, setCurrent] = React.useState(selection.row)
+        if (React.useEffect) {
+          React.useEffect(() => subscribeSelection(() => setCurrent(selection.row)), [])
         }
-        return h(
+        const row = current || selection.row
+        const head = h(
           'div',
-          { style: { display: 'flex', flexDirection: 'column' } },
-          h(
-            'button',
-            {
-              type: 'button',
-              'aria-expanded': expanded,
-              onClick: toggle,
-              title: [row.n, ...row.pts.map(effortLine)].join('\n'),
-              style: {
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                width: '100%',
-                border: 'none',
-                background: 'transparent',
-                padding: '2px 0',
-                fontSize: 11,
-                color: 'var(--dsw-alias-label-primary)',
-                cursor: 'pointer',
-                textAlign: 'start',
-              },
+          {
+            style: {
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '5px 8px 3px',
+              fontSize: 12,
+              color: 'var(--dsw-alias-label-primary)',
             },
-            h('span', { 'aria-hidden': true, style: { flex: 'none', width: 8, opacity: 0.5 } }, expanded ? '▾' : '▸'),
-            h(
-              'span',
-              {
-                style: {
-                  flex: 1,
-                  minWidth: 0,
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                },
-              },
-              row.n,
-              row.p ? h('span', { style: { opacity: 0.7 } }, ' ◆') : null,
-            ),
-            h(
-              'span',
-              { style: { opacity: 0.75, flex: 'none', fontVariantNumeric: 'tabular-nums' } },
-              'IQ ' + iqText(row),
-            ),
-            h(
-              'span',
-              {
-                style: {
-                  flex: 'none',
-                  width: 34,
-                  textAlign: 'end',
-                  fontWeight: 700,
-                  color: GRADE_COLOR[row.gr[0]] || 'var(--dsw-alias-label-secondary)',
-                },
-              },
-              gradeText(row),
-            ),
-          ),
-          expanded
+          },
+          h('span', null, readLabel(t, 'panel.title', 'Reasoning grades')),
+          row
             ? h(
-                'div',
+                'span',
+                { style: { opacity: 0.75, fontSize: 10 } },
+                row.n + ' · IQ ' + iqText(row),
+              )
+            : null,
+          row
+            ? h(
+                'span',
                 {
                   style: {
-                    paddingInlineStart: 16,
-                    paddingBottom: 5,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 1,
+                    marginInlineStart: 'auto',
+                    fontWeight: 700,
+                    color: GRADE_COLOR[row.gr[0]] || 'var(--dsw-alias-label-secondary)',
                   },
                 },
-                row.pts.map((point) =>
-                  h(
-                    'div',
-                    {
-                      key: (point.e || 'default') + point.i,
-                      style: {
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 6,
-                        fontSize: 10,
-                        color: 'var(--dsw-alias-label-secondary)',
-                      },
-                    },
-                    h('span', { style: { flex: 'none', width: 44, opacity: 0.8 } }, point.e || 'default'),
-                    h(
-                      'span',
-                      { style: { flex: 'none', width: 46, textAlign: 'end', fontVariantNumeric: 'tabular-nums' } },
-                      'IQ ' + round(point.i),
-                    ),
-                    h(
-                      'span',
-                      {
-                        style: {
-                          flex: 'none',
-                          width: 52,
-                          textAlign: 'end',
-                          fontVariantNumeric: 'tabular-nums',
-                          opacity: 0.8,
-                        },
-                      },
-                      point.c === null || point.c === undefined ? '—' : money(point.c),
-                    ),
-                    h(
-                      'span',
-                      {
-                        style: {
-                          flex: 'none',
-                          width: 20,
-                          textAlign: 'end',
-                          fontWeight: 700,
-                          color: GRADE_COLOR[point.r] || 'inherit',
-                        },
-                      },
-                      point.r || '—',
-                    ),
-                  ),
-                ),
+                gradeText(row),
               )
             : null,
         )
-      }
 
-      return function ModelInsightPanel() {
-        const [open, setOpen] = React.useState(false)
-        const [mode, setMode] = React.useState('grade')
-        const sorted = React.useMemo(() => {
-          const rows = AA.models.filter((row) => row.pts && row.pts.length)
-          if (mode === 'iq') return [...rows].sort((a, b) => b.iq[1] - a.iq[1])
-          if (mode === 'cost') {
-            const cheapest = (row) => Math.min(...row.pts.map((p) => (p.c === null ? Infinity : p.c)))
-            return [...rows].sort((a, b) => cheapest(a) - cheapest(b))
-          }
-          return [...rows].sort((a, b) => order[a.gr[0]] - order[b.gr[0]] || b.iq[1] - a.iq[1])
-        }, [mode])
-        const frontier = React.useMemo(() => AA.models.filter((row) => row.p === 1), [])
-
-        const tab = (key, labelText) =>
-          h(
-            'button',
-            {
-              key,
-              type: 'button',
-              onClick: (event) => {
-                event.stopPropagation()
-                setMode(key)
-              },
-              style: {
-                border: 'none',
-                background: mode === key ? 'var(--dsw-alias-bg-layer-2)' : 'transparent',
-                color: 'var(--dsw-alias-label-primary)',
-                fontSize: 11,
-                padding: '2px 7px',
-                borderRadius: 6,
-                cursor: 'pointer',
-              },
-            },
-            labelText,
+        if (!row) {
+          return h(
+            'div',
+            { style: { padding: '2px 0 6px' } },
+            head,
+            h(
+              'div',
+              { style: { padding: '0 8px 4px', fontSize: 10, opacity: 0.6 } },
+              readLabel(t, 'panel.empty', 'Pick a model above to see its reasoning grades.'),
+            ),
           )
+        }
 
         return h(
           'div',
-          { style: { padding: '2px 0 4px' } },
+          { style: { padding: '2px 0 6px' } },
+          head,
           h(
-            'button',
+            'div',
             {
-              type: 'button',
-              'aria-expanded': open,
-              onClick: (event) => {
-                event.stopPropagation()
-                setOpen(!open)
-              },
               style: {
+                paddingInlineStart: 16,
+                paddingInlineEnd: 8,
                 display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                width: '100%',
-                border: 'none',
-                background: 'transparent',
-                color: 'var(--dsw-alias-label-primary)',
-                fontSize: 12,
-                padding: '5px 8px',
-                cursor: 'pointer',
-                textAlign: 'start',
+                flexDirection: 'column',
+                gap: 1,
               },
             },
-            h('span', { 'aria-hidden': true }, open ? '▾' : '▸'),
-            h('span', null, readLabel(t, 'panel.title', 'AA intelligence vs cost')),
-            h(
-              'span',
-              { style: { marginInlineStart: 'auto', fontSize: 10, opacity: 0.7 } },
-              `${AA.models.length} models · ${AA.snapshot}`,
-            ),
-          ),
-          open
-            ? h(
+            row.pts.map((point) =>
+              h(
                 'div',
-                { style: { padding: '2px 8px 6px' } },
+                {
+                  key: (point.e || 'default') + point.i,
+                  style: {
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    fontSize: 10,
+                    color: 'var(--dsw-alias-label-secondary)',
+                  },
+                },
+                h('span', { style: { flex: 'none', width: 46, opacity: 0.8 } }, point.e || 'default'),
                 h(
-                  'div',
-                  { style: { display: 'flex', gap: 4, marginBottom: 4 } },
-                  tab('grade', readLabel(t, 'panel.tabGrade', 'Grade')),
-                  tab('iq', readLabel(t, 'panel.tabIq', 'Intelligence')),
-                  tab('cost', readLabel(t, 'panel.tabCost', 'Cost')),
+                  'span',
+                  { style: { flex: 'none', width: 44, textAlign: 'end', fontVariantNumeric: 'tabular-nums' } },
+                  'IQ ' + round(point.i),
                 ),
                 h(
-                  'div',
-                  { style: { fontSize: 10, opacity: 0.65, marginBottom: 5, lineHeight: 1.4 } },
-                  readLabel(
-                    t,
-                    'panel.hint',
-                    'Grades are Pareto layers over every reasoning-effort point. Expand a model to see each effort.',
-                  ),
-                ),
-                h(
-                  'div',
+                  'span',
                   {
                     style: {
-                      maxHeight: 250,
-                      overflowY: 'auto',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: 1,
+                      flex: 'none',
+                      width: 52,
+                      textAlign: 'end',
+                      fontVariantNumeric: 'tabular-nums',
+                      opacity: 0.8,
                     },
                   },
-                  sorted
-                    .slice(0, ROWS)
-                    .map((row, index) => h(ModelRow, { key: row.s, row, defaultOpen: index === 0 })),
+                  point.c === null || point.c === undefined ? '—' : money(point.c),
                 ),
-                frontier.length
-                  ? h(
-                      'div',
-                      { style: { marginTop: 6, fontSize: 10, opacity: 0.65, lineHeight: 1.4 } },
-                      readLabel(t, 'panel.frontier', 'Frontier picks') +
-                        ': ' +
-                        frontier
-                          .slice()
-                          .sort((a, b) => b.iq[1] - a.iq[1])
-                          .slice(0, 5)
-                          .map((row) => row.n + ' (' + iqText(row) + ')')
-                          .join(' · '),
-                    )
-                  : null,
                 h(
-                  'div',
-                  { style: { marginTop: 5, fontSize: 10, opacity: 0.55 } },
-                  `${AA.points} effort points · ${AA.source}`,
+                  'span',
+                  {
+                    style: {
+                      flex: 'none',
+                      width: 20,
+                      textAlign: 'end',
+                      fontWeight: 700,
+                      color: GRADE_COLOR[point.r] || 'inherit',
+                    },
+                  },
+                  point.r || '—',
                 ),
-              )
-            : null,
+              ),
+            ),
+          ),
+          h(
+            'div',
+            { style: { padding: '3px 8px 0', fontSize: 9, opacity: 0.5 } },
+            AA.source + ' · ' + AA.snapshot,
+          ),
         )
       }
     }
@@ -502,25 +378,25 @@ window.__ModuleLoader__.load({
         const disposeEn = ctx.locale.register('model-insights', 'en', {
           'badge.intelligence': 'Intelligence index',
           'badge.grade': 'Value grade (S = Pareto frontier, then A-D)',
-          'panel.title': 'Reasoning grades (AA)',
+          'panel.title': 'Reasoning grades',
           'panel.tabGrade': 'Grade',
           'panel.tabIq': 'Intelligence',
           'panel.tabCost': 'Cost',
           'panel.hint':
             'Grades are Pareto layers over every reasoning-effort point. A range means the model crosses grades as reasoning effort changes.',
-          'panel.frontier': 'Frontier picks',
+          'panel.empty': 'Pick a model above to see its reasoning grades.',
         })
         ctx.effect(() => disposeEn)
 
         const disposeZh = ctx.locale.register('model-insights', 'zh', {
           'badge.intelligence': '智力指数',
           'badge.grade': '性价比等级（S = 帕累托前沿）',
-          'panel.title': '推理档评分（AA）',
+          'panel.title': '推理档评分',
           'panel.tabGrade': '等级',
           'panel.tabIq': '智力',
           'panel.tabCost': '成本',
           'panel.hint': '等级按每个推理档的帕累托层计算。显示为区间说明该模型随推理强度变化会跨档。',
-          'panel.frontier': '前沿推荐',
+          'panel.empty': '先在上面选一个模型，这里显示它的推理档评分。',
         })
         ctx.effect(() => disposeZh)
 
