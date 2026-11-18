@@ -28,22 +28,10 @@ window.__ModuleLoader__.load({
     const compactOf = (text) => tokensOf(text).join('')
     const NUMERIC = /^\d+$/
 
-    /** Pick the most representative AA row for one compact key. */
-    const better = (candidate, current) => {
-      if (!current) return true
-      const plain = (row) => !/\b(max|high|low|xhigh|default fallback)\b/i.test(row.n)
-      if (plain(candidate) !== plain(current)) return plain(candidate)
-      if (/\bdefault fallback\b/i.test(candidate.n) !== /\bdefault fallback\b/i.test(current.n)) {
-        return /\bdefault fallback\b/i.test(candidate.n)
-      }
-      return candidate.i > current.i
-    }
-
     const byKey = new Map()
     for (const row of AA.models) {
       const key = compactOf(row.n)
-      if (!key) continue
-      if (better(row, byKey.get(key))) byKey.set(key, row)
+      if (key && !byKey.has(key)) byKey.set(key, row)
     }
 
     const byTokens = AA.models.map((row) => {
@@ -54,12 +42,11 @@ window.__ModuleLoader__.load({
     /**
      * Exact compact-name match first, then a guarded fuzzy pass: the query's
      * version numbers must all appear in the AA name, and only date-code-like
-     * extras (>= 3 digits) are tolerated. A row that merely shares the vendor
-     * and the generation number is not a match.
+     * extras (>= 3 digits) are tolerated.
      */
     const lookup = (id, name) => {
       for (const key of [compactOf(name), compactOf(id)]) {
-        if (key && byKey.has(key)) return { row: byKey.get(key), exact: true }
+        if (key && byKey.has(key)) return byKey.get(key)
       }
       let best = null
       let bestScore = 0
@@ -83,7 +70,7 @@ window.__ModuleLoader__.load({
           }
         }
       }
-      return bestScore >= 0.8 ? { row: best, exact: false } : null
+      return bestScore >= 0.8 ? best : null
     }
 
     const money = (value) => {
@@ -92,14 +79,7 @@ window.__ModuleLoader__.load({
       return value < 0.01 ? '<$0.01' : '$' + value.toFixed(2)
     }
 
-    const TIER_COLOR = {
-      3: 'var(--dsw-alias-state-success-primary)',
-      2: 'var(--dsw-alias-state-warn-primary)',
-      1: 'var(--dsw-alias-label-secondary)',
-      0: 'var(--dsw-alias-label-secondary)',
-    }
-
-    /** Value grade letters: S is the top quintile of intelligence per dollar. */
+    /** Grade letters come from Pareto layers of the effort points. */
     const GRADE_COLOR = {
       S: 'var(--dsw-alias-state-success-primary)',
       A: 'var(--dsw-alias-brand-primary)',
@@ -145,15 +125,26 @@ window.__ModuleLoader__.load({
       }
     }
 
-    const tierName = (tier) =>
-      ({ 3: 'High value', 2: 'Fair value', 1: 'Low value', 0: 'No cost data' })[tier] || ''
+    const round = (value) => Math.round(value)
+    const iqText = (row) =>
+      row.iq[0] === row.iq[1] ? String(round(row.iq[1])) : `${round(row.iq[0])}–${round(row.iq[1])}`
+    const gradeText = (row) => (row.gr[0] === row.gr[1] ? row.gr[0] : `${row.gr[0]}–${row.gr[1]}`)
+
+    const effortLine = (point) =>
+      [
+        point.e || '—',
+        'IQ ' + round(point.i),
+        point.c === null || point.c === undefined ? null : money(point.c) + '/task',
+        point.r || null,
+      ]
+        .filter(Boolean)
+        .join(' · ')
 
     function makeBadge(t) {
       return function ModelInsightBadge(props) {
         const model = props && props.model
         if (!model) return null
-        // This slot owns the label itself, not just a badge: without the name
-        // rendered here the model rows would show only the score.
+        // This slot owns the label itself: the model name has to render here.
         const name = model.name || model.displayName || model.id || ''
         const label = h(
           'span',
@@ -173,25 +164,28 @@ window.__ModuleLoader__.load({
           },
           name,
         )
-        const hit = lookup(model.id, model.name)
-        if (!hit) return label
-        const row = hit.row
+        const row = lookup(model.id, model.name)
+        if (!row) return label
+
+        // A row that names its effort (e.g. "GPT-6.2 Astra (max)") shows that
+        // single point; otherwise the badge shows the whole range.
+        const suffix = /\((max|xhigh|high|medium|low)\)/i.exec(name)
+        const point = suffix ? row.pts.find((p) => (p.e || '').toLowerCase() === suffix[1].toLowerCase()) : null
+        const view = point
+          ? { ...row, iq: [point.i, point.i], gr: [point.r, point.r], p: point.y === 1 ? 1 : 0 }
+          : row
+
         const isTrigger = props.placement === 'trigger'
-        // Two readable signals: the official index, then a letter grade for
-        // value (quintiles of intelligence-per-dollar across the snapshot), so
-        // nobody has to divide intelligence by dollars in their head.
-        const grade = row.r || null
         const title = [
           row.n,
-          readLabel(t, 'badge.intelligence', 'Intelligence index') + ': ' + row.i,
-          readLabel(t, 'badge.cost', 'Cost per task') + ': ' + (row.c === null ? '—' : money(row.c)),
-          row.t === null ? null : readLabel(t, 'badge.time', 'Time per task') + ': ' + row.t + ' min',
-          row.v === null ? null : readLabel(t, 'badge.value', 'Intelligence per $') + ': ' + row.v,
-          grade ? readLabel(t, 'badge.grade', 'Value grade') + ': ' + grade + ' (Pareto layer ' + row.y + ')' : null,
+          readLabel(t, 'badge.intelligence', 'Intelligence index') + ': ' + iqText(view),
+          readLabel(t, 'badge.grade', 'Value grade') + ': ' + gradeText(view),
+          '',
+          ...row.pts.map((p) => effortLine(p)),
+          '',
           AA.source + ' · ' + AA.snapshot,
-        ]
-          .filter(Boolean)
-          .join('\n')
+        ].join('\n')
+
         return h(
           'span',
           {
@@ -201,8 +195,6 @@ window.__ModuleLoader__.load({
               alignItems: 'center',
               minWidth: 0,
               maxWidth: '100%',
-              // Fill the menu row so the badge can sit on its right edge; the
-              // compact trigger keeps its natural width instead.
               flex: isTrigger ? '0 1 auto' : '1 1 auto',
               width: isTrigger ? 'auto' : '100%',
               gap: 6,
@@ -214,24 +206,24 @@ window.__ModuleLoader__.load({
           label,
           pill(
             [
-              h('span', { key: 'iq' }, 'IQ ' + row.i),
-              grade ? h('span', { key: 'sep', style: { opacity: 0.45 } }, '·') : null,
-              grade
-                ? h(
-                    'span',
-                    {
-                      key: 'grade',
-                      title: readLabel(t, 'badge.grade', 'Value grade') + ': ' + grade,
-                      style: {
-                        fontWeight: 700,
-                        color: GRADE_COLOR[grade] || 'inherit',
-                        letterSpacing: '0.02em',
-                      },
-                    },
-                    grade,
-                  )
+              h('span', { key: 'iq' }, 'IQ ' + iqText(view)),
+              h('span', { key: 'sep', style: { opacity: 0.45 } }, '·'),
+              h(
+                'span',
+                {
+                  key: 'grade',
+                  title: readLabel(t, 'badge.grade', 'Value grade') + ': ' + gradeText(view),
+                  style: {
+                    fontWeight: 700,
+                    color: GRADE_COLOR[view.gr[0]] || 'inherit',
+                    letterSpacing: '0.02em',
+                  },
+                },
+                gradeText(view),
+              ),
+              view.p
+                ? h('span', { key: 'frontier', 'aria-hidden': true, style: { opacity: 0.75 } }, '◆')
                 : null,
-              row.p ? h('span', { key: 'frontier', 'aria-hidden': true, style: { opacity: 0.75 } }, '◆') : null,
             ],
             { title, marginInlineStart: isTrigger ? 4 : 'auto' },
           ),
@@ -241,17 +233,20 @@ window.__ModuleLoader__.load({
 
     function makePanel(t) {
       const ROWS = 12
+      const order = { S: 0, A: 1, B: 2, C: 3, D: 4 }
       return function ModelInsightPanel() {
         const [open, setOpen] = React.useState(false)
-        const [mode, setMode] = React.useState('value')
+        const [mode, setMode] = React.useState('grade')
         const sorted = React.useMemo(() => {
-          const rows = AA.models.filter((row) => row.c !== null && row.i !== null)
-          if (mode === 'iq') return [...rows].sort((a, b) => b.i - a.i)
-          if (mode === 'cost') return [...rows].sort((a, b) => a.c - b.c)
-          // Pareto layers first: S, then A, then B...; smarter first inside a layer.
-          return [...rows].sort((a, b) => (a.y || 99) - (b.y || 99) || b.i - a.i)
+          const rows = AA.models.filter((row) => row.pts && row.pts.length)
+          if (mode === 'iq') return [...rows].sort((a, b) => b.iq[1] - a.iq[1])
+          if (mode === 'cost') {
+            const cheapest = (row) => Math.min(...row.pts.map((p) => (p.c === null ? Infinity : p.c)))
+            return [...rows].sort((a, b) => cheapest(a) - cheapest(b))
+          }
+          return [...rows].sort((a, b) => order[a.gr[0]] - order[b.gr[0]] || b.iq[1] - a.iq[1])
         }, [mode])
-        const best = React.useMemo(() => AA.models.filter((row) => row.p === 1), [])
+        const frontier = React.useMemo(() => AA.models.filter((row) => row.p === 1), [])
 
         const tab = (key, labelText) =>
           h(
@@ -304,7 +299,11 @@ window.__ModuleLoader__.load({
             },
             h('span', { 'aria-hidden': true }, open ? '▾' : '▸'),
             h('span', null, readLabel(t, 'panel.title', 'AA intelligence vs cost')),
-            h('span', { style: { marginInlineStart: 'auto', fontSize: 10, opacity: 0.7 } }, AA.snapshot),
+            h(
+              'span',
+              { style: { marginInlineStart: 'auto', fontSize: 10, opacity: 0.7 } },
+              `${AA.models.length} models · ${AA.snapshot}`,
+            ),
           ),
           open
             ? h(
@@ -313,7 +312,7 @@ window.__ModuleLoader__.load({
                 h(
                   'div',
                   { style: { display: 'flex', gap: 4, marginBottom: 4 } },
-                  tab('value', readLabel(t, 'panel.tabValue', 'Value')),
+                  tab('grade', readLabel(t, 'panel.tabGrade', 'Grade')),
                   tab('iq', readLabel(t, 'panel.tabIq', 'Intelligence')),
                   tab('cost', readLabel(t, 'panel.tabCost', 'Cost')),
                 ),
@@ -323,14 +322,14 @@ window.__ModuleLoader__.load({
                   readLabel(
                     t,
                     'panel.hint',
-                    'Intelligence on the left, value score on the right. ◆ marks the Pareto frontier: nothing is both smarter and cheaper.',
+                    'Grades are Pareto layers over every reasoning-effort point. A range means the model crosses grades as reasoning effort changes.',
                   ),
                 ),
                 h(
                   'div',
                   {
                     style: {
-                      maxHeight: 232,
+                      maxHeight: 240,
                       overflowY: 'auto',
                       display: 'flex',
                       flexDirection: 'column',
@@ -342,7 +341,7 @@ window.__ModuleLoader__.load({
                       'div',
                       {
                         key: row.s,
-                        title: row.n + ' · ' + AA.index,
+                        title: [row.n, ...row.pts.map(effortLine)].join('\n'),
                         style: {
                           display: 'flex',
                           alignItems: 'center',
@@ -352,16 +351,6 @@ window.__ModuleLoader__.load({
                           color: 'var(--dsw-alias-label-primary)',
                         },
                       },
-                      h('span', {
-                        'aria-hidden': true,
-                        style: {
-                          width: 5,
-                          height: 5,
-                          borderRadius: 3,
-                          flex: 'none',
-                            background: GRADE_COLOR[row.r] || TIER_COLOR[row.g] || TIER_COLOR[0],
-                        },
-                      }),
                       h(
                         'span',
                         {
@@ -376,38 +365,45 @@ window.__ModuleLoader__.load({
                         row.n,
                         row.p ? h('span', { style: { opacity: 0.7 } }, ' ◆') : null,
                       ),
-                      h('span', { style: { opacity: 0.75, flex: 'none', fontVariantNumeric: 'tabular-nums' } }, 'IQ ' + row.i),
-                      h('span', {
-                        style: {
-                          flex: 'none',
-                          width: 18,
-                          textAlign: 'end',
-                          fontWeight: 700,
-                          color: GRADE_COLOR[row.r] || 'var(--dsw-alias-label-secondary)',
+                      h(
+                        'span',
+                        { style: { opacity: 0.75, flex: 'none', fontVariantNumeric: 'tabular-nums' } },
+                        'IQ ' + iqText(row),
+                      ),
+                      h(
+                        'span',
+                        {
+                          style: {
+                            flex: 'none',
+                            width: 34,
+                            textAlign: 'end',
+                            fontWeight: 700,
+                            color: GRADE_COLOR[row.gr[0]] || 'var(--dsw-alias-label-secondary)',
+                          },
                         },
-                        title: readLabel(t, 'badge.grade', 'Value grade'),
-                      }, row.r || '—'),
+                        gradeText(row),
+                      ),
                     ),
                   ),
                 ),
-                best.length
+                frontier.length
                   ? h(
                       'div',
                       { style: { marginTop: 6, fontSize: 10, opacity: 0.65, lineHeight: 1.4 } },
                       readLabel(t, 'panel.frontier', 'Frontier picks') +
                         ': ' +
-                        best
+                        frontier
                           .slice()
-                          .sort((a, b) => b.i - a.i)
+                          .sort((a, b) => b.iq[1] - a.iq[1])
                           .slice(0, 5)
-                          .map((row) => row.n + ' (' + money(row.c) + ')')
+                          .map((row) => row.n + ' (' + iqText(row) + ')')
                           .join(' · '),
                     )
                   : null,
                 h(
                   'div',
                   { style: { marginTop: 5, fontSize: 10, opacity: 0.55 } },
-                  AA.index + ' · ' + AA.source,
+                  `${AA.points} effort points · ${AA.source}`,
                 ),
               )
             : null,
@@ -420,33 +416,25 @@ window.__ModuleLoader__.load({
       apply(ctx) {
         const disposeEn = ctx.locale.register('model-insights', 'en', {
           'badge.intelligence': 'Intelligence index',
-          'badge.cost': 'Cost per task',
-          'badge.time': 'Time per task',
-          'badge.value': 'Intelligence per $',
           'badge.grade': 'Value grade (S = Pareto frontier, then A-D)',
-          'badge.tier': 'Value tier',
           'panel.title': 'AA intelligence vs cost',
-          'panel.tabValue': 'Grade',
+          'panel.tabGrade': 'Grade',
           'panel.tabIq': 'Intelligence',
           'panel.tabCost': 'Cost',
           'panel.hint':
-            'Grades follow the Pareto layers of the intelligence-vs-cost chart: S is the frontier (nothing both smarter and cheaper), then A, B, C, D as each layer is peeled off.',
+            'Grades are Pareto layers over every reasoning-effort point. A range means the model crosses grades as reasoning effort changes.',
           'panel.frontier': 'Frontier picks',
         })
         ctx.effect(() => disposeEn)
 
         const disposeZh = ctx.locale.register('model-insights', 'zh', {
           'badge.intelligence': '智力指数',
-          'badge.cost': '每任务成本',
-          'badge.time': '每任务耗时',
-          'badge.value': '每美元智力',
           'badge.grade': '性价比等级（S = 帕累托前沿）',
-          'badge.tier': '性价比档位',
           'panel.title': 'AA 智力 vs 成本',
-          'panel.tabValue': '等级',
+          'panel.tabGrade': '等级',
           'panel.tabIq': '智力',
           'panel.tabCost': '成本',
-          'panel.hint': '等级按帕累托层划分：S 是前沿（没有既更聪明又更便宜的模型），逐层剥离后依次 A、B、C、D。',
+          'panel.hint': '等级按每个推理档的帕累托层计算。显示为区间说明该模型随推理强度变化会跨档。',
           'panel.frontier': '前沿推荐',
         })
         ctx.effect(() => disposeZh)

@@ -1,91 +1,81 @@
 # dsh-model-insights
 
-> 在 DeepSeek Harness 的模型选择器里，直接看到每个模型的 **Artificial Analysis 智力指数** 和 **性价比等级（S/A/B/C/D）**。
+> 在 DeepSeek Harness 的模型选择器里，直接看到每个模型的 **Artificial Analysis 智力指数** 与 **帕累托性价比等级（S/A/B/C/D）**，并且按**推理强度**分别计价、分别评级。
 
-模型配多了以后，下拉列表里全是名字，选谁全靠记忆。这个插件把 [Artificial Analysis](https://artificialanalysis.ai/) 公开榜单的两件事搬到每一行：
+模型配多了，下拉列表里全是名字，选谁全靠记忆。这个插件把 [Artificial Analysis](https://artificialanalysis.ai/) 的公开数据搬进每一行：
 
 ```
-kimi-k3.1-pro              ● IQ 46 · B
-mimo-v2.6-flash            ● IQ 27 · S ◆
-mimo-v2.6-pro              ● IQ 30 · A
-gpt-6-astra                ● IQ 57 · C
+kimi-k3.1-pro              ● IQ 46        · B
+gpt-6.2-astra              ● IQ 46–62     · S–B ◆
+claude-opus-5-5            ● IQ 35–59     · B–D ◆
 ```
 
-- **IQ**：AA 官方智力指数（Intelligence Index），代表模型有多强
-- **S / A / B / C / D**：性价比等级，把「智力 ÷ 单任务成本」在全榜五等分，S 最划算、D 最贵
-- **颜色**：S 绿、A 品牌蓝、B 中性、C 琥珀、D 红，不读字母也能看出档位
-- **◆**：帕累托前沿，没有被任何模型「又更聪明又更便宜」地压制
-- **悬停**：AA 原始模型名、智力、单任务成本、单任务耗时、每美元智力、快照日期
+- **IQ 区间**：同一模型在 `low → max` 各推理档的智力指数范围；只有一个档位时显示单值
+- **等级区间**：S/A/B/C/D，按**每个推理档的点**在「智力 vs 单任务成本」平面上的帕累托层计算；跨档就显示成 `S–B`
+- **◆** 帕累托前沿：该模型至少有一个推理档，没有任何模型能同时更聪明又更便宜
+- **悬停**：逐档明细（`max · IQ 62 · $4.00/task · S`），以及数据来源与快照日期
+- 如果某一行模型名自带档位（如 `GPT-6.2 Astra (max)`），该行直接显示这一档的精确分数与等级
 
-菜单底部还有一项可展开的 **AA 智力 vs 成本** 面板，能按性价比 / 智力 / 成本三种顺序浏览全榜，并列出前沿推荐。
+菜单底部还有一项可展开的 **AA 智力 vs 成本** 面板，可按等级 / 智力 / 成本浏览全部收录模型。
 
 ## 安装
 
 ```bash
-# 从 GitHub 装
 dsh plugin add github:RainbowLion0320/dsh-model-insights
-
-# 或者本地目录装
+# 或本地目录
 dsh plugin add file:/path/to/dsh-model-insights
 ```
 
-桌面版在「设置 → 插件」里填包名或目录安装即可。装完**重启宿主**：客户端模块在宿主启动时加载。
+装完**重启宿主**（客户端模块在宿主启动时加载）。
 
-## 等级怎么算的
+## 评级规则
 
-等级不是「谁便宜谁赢」，而是照 AA 那张 **Intelligence Index vs. Cost per Task** 散点图的**帕累托层**来分级：
+1. 把 AA 每一个「模型 × 推理档」当成平面上的一个点：X = 单任务成本，Y = 智力指数
+2. **第一层帕累托前沿** = S：不存在任何点比它「又更聪明、又更便宜」
+3. 剥掉 S 层后重复：第二层 = A，第三层 = B，第四层 = C，第五层及以后统一记 **D**
+4. 没有成本数据的点不参与评级
 
-1. 在有成本数据的模型里，找出**第一层帕累托前沿**：没有任何模型比它「又更聪明、又更便宜」。这一层 = **S**
-2. 把这一层剥掉，在剩下的模型里再找一次前沿 = **A**
-3. 继续剥离依次得到 **B**、**C**，再往下统一记为 **D**
-4. 没有成本数据的模型（AA 标 N/A）不给等级，只显示名字
+所以 S 不等于「最便宜」，也不等于「最强」，而是**同等成本里最聪明、同等智力里最便宜**的那些点 —— 与 AA 页面上那条 Intelligence Index vs. Cost per Task 的帕累托线一致。
 
-判定「支配」的方向是：智力更高 **且** 成本更低。所以：
+`node tools/check.mjs` 会验证：每个 S 点都不可被支配，每个被支配的点都不许是 S，模型的区间等于其各档的最大/最小等级。
 
-- 又便宜又弱、但**没有被更聪明更便宜的同价位模型取代**的（比如最便宜的高 IQ 小模型）仍然能在前沿上拿 S —— 这是帕累托的定义，不是漏洞
-- 又贵又不聪明、被别人同时压制的，会被推到 D
+## 数据覆盖（重要，别指望它认识所有模型）
 
-`node tools/check.mjs` 会验证这件事：每个 S 模型都必须无可支配，每个被支配的模型都不许是 S。
+- AA 站点声称收录 700+ 模型，但**其中只有一部分被 v5 智力指数评测**；大量模型页显示 `N/A`
+- 本仓库抓取了 AA sitemap 里全部 **530 个模型页**，最终得到 **68 个有评分模型 / 136 个推理档点**（快照日期写在插件里）
+- 没被 AA 评分的模型（`claude-opus-4-6`、`deepseek-v4-flash`、`gpt-5.4` 等）在列表里**只显示名字，不给等级** —— 不猜、不插值
+- AA 的 JSON API 需要 key；本插件运行时不联网、不要 key，全部数据在构建期抓取并内联
 
-**注意它排的是性价比，不是强弱。** `IQ 27 · S` 说的是「在这个智力档位它最便宜」，`IQ 57 · C` 说的是「很强但同价位有更划算的选择」。IQ 和字母一起看，才是 AA 那张散点图想表达的东西。
-
-## 数据从哪来
-
-- AA 的 JSON API 需要 API key，这个插件**不碰网络、不要 key**，把抓下来的快照直接内联进 `client.js`
-- 默认榜单只列「Current」模型，所以仓库里还有 `data/extra-models.json`，补录榜单外但仍需展示的模型（同样来自 AA 的单模型页）
-- 快照日期写在徽标的悬停提示里；**匹配不到的模型只显示名字，不猜分数**。AA 自己没测的模型（页面上标 `N/A`）就是这个结果
-
-### 刷新数据
+## 刷新数据
 
 ```bash
-node tools/fetch-aa.mjs      # 抓榜单 -> data/leaderboard.json
-node tools/enrich.mjs kimi-k3 claude-opus-4-6   # 可选：补录单模型页
-node tools/build.mjs         # 派生指标 + 内联 -> data/aa.json, client.js
+node tools/fetch-aa-full.mjs   # 爬 530 个模型页 -> data/aa-points.json
+node tools/build.mjs           # 帕累托分层 + 区间 -> data/aa.json, client.js
+node tools/check.mjs           # 校验等级定义
 ```
 
-改完 `client.js` 同样要重启 DSH 才会加载新模块。
+改完 `client.js` 要重启 DSH 才会加载新模块。
 
 ## 目录结构
 
 ```
-client.template.js   客户端源码（数据占位符 /*__AA_DATA__*/null）
-client.js            构建产物（内联了数据，别手改）
-index.js             Host 半，空实现
-cordis.patch.yml     bundle patch
-data/leaderboard.json  榜单原始快照
-data/extra-models.json 补录模型
-data/aa.json         合并 + 派生指标后的快照
-tools/               抓取与构建脚本
-locale/              插件元数据（中/英）
-docs/DETAIL.md       插件详情页
+client.template.js      客户端源码（数据占位符 /*__AA_DATA__*/null）
+client.js               构建产物（已内联数据，别手改）
+index.js                Host 半，空实现
+cordis.patch.yml        bundle patch
+data/aa-points.json     每个「模型 × 推理档」的原始点
+data/aa.json            聚合后的模型区间与等级
+tools/                  抓取、构建、校验脚本
+locale/                 插件元数据（中/英）
+docs/DETAIL.md          插件详情页
 ```
 
 ## 已知限制
 
-- 数据是**快照**，不联网自动更新；AA 出新模型后要重跑上面的脚本
-- 名字匹配是归一化后的字符串匹配，模型被本地改名可能掉出匹配
-- AA 对同一模型分 `Max / High / Low` 推理档，插件取最有代表性的一档（优先 Default Fallback，其次最高分），所以成本数字和你当前的 reasoning 档位可能不同
-- 只覆盖 AA 有评测的模型；小众模型、私有部署模型没有分数
+- 数据是**快照**，不自动更新
+- DSH 的模型标签槽位只给到模型、不给当前选中的推理档，所以徽标显示区间；具体档位的评级在悬停明细里
+- 名字匹配是归一化字符串匹配，本地改名可能掉出匹配
+- 榜单里同一模型的不同 provider 变体可能合并或拆分，成本取 AA 的加权单任务成本
 
 ## License
 
