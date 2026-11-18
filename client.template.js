@@ -306,7 +306,7 @@ window.__ModuleLoader__.load({
     }
     const costTone = (level) => (level <= 2 ? COST_COLOR.low : level === 3 ? COST_COLOR.mid : COST_COLOR.high)
 
-    const buildRowBadge = (point, inline) => {
+    const buildRowBadge = (point, inline, compact) => {
       const badge = document.createElement('span')
       badge.setAttribute(BADGE_ATTR, '')
       badge.style.cssText = [
@@ -350,14 +350,16 @@ window.__ModuleLoader__.load({
       if (level > 0) cost.style.color = costTone(level)
       badge.appendChild(cost)
 
-      const sep = document.createElement('span')
-      sep.textContent = '·'
-      sep.style.opacity = '0.45'
-      badge.appendChild(sep)
+      if (!compact) {
+        const sep = document.createElement('span')
+        sep.textContent = '·'
+        sep.style.opacity = '0.45'
+        badge.appendChild(sep)
 
-      const score = document.createElement('span')
-      score.textContent = 'IQ ' + round(point.i) + ' ' + (point.r || '—')
-      badge.appendChild(score)
+        const score = document.createElement('span')
+        score.textContent = 'IQ ' + round(point.i) + ' ' + (point.r || '—')
+        badge.appendChild(score)
+      }
 
       return badge
     }
@@ -371,6 +373,7 @@ window.__ModuleLoader__.load({
         for (const node of document.querySelectorAll('[' + BADGE_ATTR + ']')) node.remove()
         for (const node of document.querySelectorAll('[' + POS_ATTR + ']')) {
           node.style.position = ''
+          node.style.paddingRight = ''
           node.removeAttribute(POS_ATTR)
         }
       }
@@ -393,56 +396,67 @@ window.__ModuleLoader__.load({
         const LABELS = Array.from(EFFORT_LABELS)
 
         for (const root of roots) {
-          // Collect every element whose whole text is one effort label.
+          // Only a row whose entire text is the effort name is an option row.
+          // The root menu's "reasoning level" row also contains an effort name
+          // ("… Max ›"), and decorating it covered its own value and chevron.
           const candidates = new Map()
           for (const node of root.querySelectorAll('*')) {
-            const text = node.textContent || ''
-            if (!text || text.length > 28) continue
-            const label = norm(text)
-            const key = LABELS.find((value) => label.startsWith(value) && label.length <= value.length + 4)
+            const label = norm(node.textContent)
+            if (!label || label.length > 12) continue
+            const key = LABELS.find((value) => label === value)
             if (key) candidates.set(node, key)
           }
 
           const decorated = new Set()
           for (const [node, key] of candidates) {
-            // Climb to the outermost matching element: that is the menu row.
+            // Climb through wrappers whose text is still exactly the label, so
+            // the badge lands on the option row rather than inside the label.
             let top = node
-            while (
-              top.parentElement &&
-              top.parentElement !== root &&
-              candidates.has(top.parentElement)
-            ) {
+            while (top.parentElement && top.parentElement !== root && candidates.get(top.parentElement) === key) {
               top = top.parentElement
             }
-            if (top === root || decorated.has(top)) continue
-            decorated.add(top)
-            if (top.querySelector && top.querySelector('[' + BADGE_ATTR + ']')) continue
+            const row = top.parentElement && top.parentElement !== root ? top.parentElement : top
+            if (decorated.has(row)) continue
+            decorated.add(row)
+            if (row.querySelector && row.querySelector('[' + BADGE_ATTR + ']')) continue
             const point = points.get(key)
             if (!point) continue
+
+            // A row that also carries other text is the summary row ("Reasoning
+            // level … Max ›"). Put a compact badge before its value instead of
+            // appending to the row, which covered the value and the chevron.
+            if (norm(row.textContent) !== key) {
+              if (row === top) continue
+              const summary = buildRowBadge(point, true, true)
+              summary.style.marginInlineStart = 'auto'
+              summary.style.marginInlineEnd = '4px'
+              row.insertBefore(summary, top)
+              continue
+            }
+
             const badge = buildRowBadge(point)
             let rowIsFlex = true
             try {
-              rowIsFlex = /flex|grid/.test(window.getComputedStyle(top).display)
+              rowIsFlex = /flex|grid/.test(window.getComputedStyle(row).display)
             } catch {
               rowIsFlex = true
             }
-            if (!rowIsFlex) {
-              if (!top.style.position) {
-                top.style.position = 'relative'
-                top.setAttribute(POS_ATTR, '')
+            if (rowIsFlex) {
+              // Reserve the space instead of letting the badge sit on top of the label.
+              row.insertBefore(badge, row.lastElementChild && !(row.lastElementChild.textContent || '').trim() ? row.lastElementChild : null)
+            } else {
+              if (!row.style.position) {
+                row.style.position = 'relative'
+                row.setAttribute(POS_ATTR, '')
               }
+              row.style.paddingRight = '66px'
+              row.setAttribute(POS_ATTR, '')
               badge.style.position = 'absolute'
               badge.style.right = '8px'
               badge.style.top = '50%'
               badge.style.transform = 'translateY(-50%)'
+              row.appendChild(badge)
             }
-
-            // Keep any trailing check/icon in its place: the badge goes before it.
-            const last = top.lastElementChild
-            const trailingIcon =
-              last && last !== badge && !(last.textContent || '').trim() && last.tagName !== 'BR'
-            if (trailingIcon) top.insertBefore(badge, last)
-            else top.appendChild(badge)
           }
         }
 
