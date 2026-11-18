@@ -174,7 +174,7 @@ window.__ModuleLoader__.load({
               height: 6 + index * 1.5,
               borderRadius: 1,
               boxSizing: 'border-box',
-              background: index < level ? 'var(--dsw-alias-state-warn-primary)' : 'transparent',
+              background: index < level ? costTone(level) : 'transparent',
               border: index < level ? 'none' : '1px solid var(--dsw-alias-border-l2)',
             },
           }),
@@ -299,6 +299,14 @@ window.__ModuleLoader__.load({
       return Math.max(1, Math.min(5, 1 + Math.round(clamped * 4)))
     }
 
+    /** Cheap reads green, mid amber, expensive red. */
+    const COST_COLOR = {
+      low: 'var(--dsw-alias-state-success-primary)',
+      mid: 'var(--dsw-alias-state-warn-primary)',
+      high: 'var(--dsw-alias-state-error-primary)',
+    }
+    const costTone = (level) => (level <= 2 ? COST_COLOR.low : level === 3 ? COST_COLOR.mid : COST_COLOR.high)
+
     const buildRowBadge = (point, inline) => {
       const badge = document.createElement('span')
       badge.setAttribute(BADGE_ATTR, '')
@@ -332,7 +340,7 @@ window.__ModuleLoader__.load({
           (6 + index * 1.5) +
           'px;border-radius:1px;box-sizing:border-box;' +
           (filled
-            ? 'background:var(--dsw-alias-state-warn-primary);'
+            ? 'background:' + costTone(level) + ';'
             : 'background:transparent;border:1px solid var(--dsw-alias-border-l2);')
         battery.appendChild(cell)
       }
@@ -340,6 +348,7 @@ window.__ModuleLoader__.load({
 
       const cost = document.createElement('span')
       cost.textContent = point.c === null || point.c === undefined ? '—' : money(point.c)
+      if (level > 0) cost.style.color = costTone(level)
       badge.appendChild(cost)
 
       const sep = document.createElement('span')
