@@ -187,7 +187,7 @@ window.__ModuleLoader__.load({
           readLabel(t, 'badge.cost', 'Cost per task') + ': ' + (row.c === null ? '—' : money(row.c)),
           row.t === null ? null : readLabel(t, 'badge.time', 'Time per task') + ': ' + row.t + ' min',
           row.v === null ? null : readLabel(t, 'badge.value', 'Intelligence per $') + ': ' + row.v,
-          grade ? readLabel(t, 'badge.grade', 'Value grade') + ': ' + grade + ' / S' : null,
+          grade ? readLabel(t, 'badge.grade', 'Value grade') + ': ' + grade + ' (Pareto layer ' + row.y + ')' : null,
           AA.source + ' · ' + AA.snapshot,
         ]
           .filter(Boolean)
@@ -248,7 +248,8 @@ window.__ModuleLoader__.load({
           const rows = AA.models.filter((row) => row.c !== null && row.i !== null)
           if (mode === 'iq') return [...rows].sort((a, b) => b.i - a.i)
           if (mode === 'cost') return [...rows].sort((a, b) => a.c - b.c)
-          return [...rows].sort((a, b) => b.q - a.q)
+          // Pareto layers first: S, then A, then B...; smarter first inside a layer.
+          return [...rows].sort((a, b) => (a.y || 99) - (b.y || 99) || b.i - a.i)
         }, [mode])
         const best = React.useMemo(() => AA.models.filter((row) => row.p === 1), [])
 
@@ -358,7 +359,7 @@ window.__ModuleLoader__.load({
                           height: 5,
                           borderRadius: 3,
                           flex: 'none',
-                          background: TIER_COLOR[row.g] || TIER_COLOR[0],
+                            background: GRADE_COLOR[row.r] || TIER_COLOR[row.g] || TIER_COLOR[0],
                         },
                       }),
                       h(
@@ -422,14 +423,14 @@ window.__ModuleLoader__.load({
           'badge.cost': 'Cost per task',
           'badge.time': 'Time per task',
           'badge.value': 'Intelligence per $',
-          'badge.grade': 'Value grade (S best, D worst)',
+          'badge.grade': 'Value grade (S = Pareto frontier, then A-D)',
           'badge.tier': 'Value tier',
           'panel.title': 'AA intelligence vs cost',
-          'panel.tabValue': 'Value',
+          'panel.tabValue': 'Grade',
           'panel.tabIq': 'Intelligence',
           'panel.tabCost': 'Cost',
           'panel.hint':
-            'Left: intelligence index. Right: value score. ◆ marks the Pareto frontier — nothing is both smarter and cheaper.',
+            'Grades follow the Pareto layers of the intelligence-vs-cost chart: S is the frontier (nothing both smarter and cheaper), then A, B, C, D as each layer is peeled off.',
           'panel.frontier': 'Frontier picks',
         })
         ctx.effect(() => disposeEn)
@@ -439,13 +440,13 @@ window.__ModuleLoader__.load({
           'badge.cost': '每任务成本',
           'badge.time': '每任务耗时',
           'badge.value': '每美元智力',
-          'badge.grade': '性价比等级（S 最好，D 最差）',
+          'badge.grade': '性价比等级（S = 帕累托前沿）',
           'badge.tier': '性价比档位',
           'panel.title': 'AA 智力 vs 成本',
-          'panel.tabValue': '性价比',
+          'panel.tabValue': '等级',
           'panel.tabIq': '智力',
           'panel.tabCost': '成本',
-          'panel.hint': '左边是智力指数，右边是性价比分。◆ 表示帕累托前沿：没有既更聪明又更便宜的模型。',
+          'panel.hint': '等级按帕累托层划分：S 是前沿（没有既更聪明又更便宜的模型），逐层剥离后依次 A、B、C、D。',
           'panel.frontier': '前沿推荐',
         })
         ctx.effect(() => disposeZh)

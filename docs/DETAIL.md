@@ -6,21 +6,24 @@ you actually pick from, so a long model list stops being a memory test.
 ## What you see
 
 - **A badge on every model row** in the composer model picker, right-aligned: the AA intelligence
-  index, then a **value grade from S to D**. The grade splits every scored model in the snapshot into
-  five equal quintiles of intelligence-per-dollar (S = top fifth, D = bottom fifth), so the row never
-  asks you to divide intelligence by dollars yourself.
-- **The same badge on the trigger**, shortened to the same two signals.
+  index, then a **value grade from S to D**.
+- The grade comes from the **Pareto layers** of the intelligence-vs-cost chart, not from raw price:
+  S is the first frontier (no model is both smarter and cheaper), and each further peel down the
+  remaining models is A, B, C, then D. A cheap model only earns S if nothing smarter is also cheaper;
+  a model that another model beats on both axes never scores S.
 - The grade letter is coloured: S green, A brand blue, B neutral, C amber, D red — the tier is legible
   without reading the letter.
-- Note what the grade ranks: **value**, not raw capability. A cheap small model can be S while a
-  frontier model sits at C; read the `IQ` number next to it for capability, and the pair together for
-  the trade-off.
+- Models AA has not priced (no cost per task) carry no grade and show only their name.
+- `node tools/check.mjs` asserts the property: every S model is Pareto-optimal, every dominated model
+  grades below S.
+- Note what the grade ranks: **the trade-off**, not raw capability. Read the `IQ` number next to it for
+  capability, and the pair together for the decision.
 - **`◆`** marks a model on the Pareto frontier: no other model is both smarter and cheaper.
 - **A panel inside the model menu** — open *AA intelligence vs cost* to sort the whole leaderboard by
-  value, intelligence or cost, with frontier picks listed at the bottom.
+  grade, intelligence or cost, with frontier picks listed at the bottom.
 
 Hovering a badge shows the source row: full AA model name, intelligence, cost per task, time per task,
-intelligence per dollar, the raw value score, and the snapshot date.
+intelligence per dollar, the Pareto layer behind the letter, and the snapshot date.
 
 ## Data and its limits
 

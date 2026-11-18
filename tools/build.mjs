@@ -59,22 +59,45 @@ for (const m of models) {
   m.score = m.value === null ? null : Math.round((100 * (Math.log(m.value) - logMin)) / (logMax - logMin))
 }
 
-// Letter grade: quintiles of value across this snapshot (S = best value).
-const GRADES = ['D', 'C', 'B', 'A', 'S']
-const ranked = models.filter((m) => m.value !== null).sort((a, b) => a.value - b.value)
-ranked.forEach((m, index) => {
-  const p = ranked.length <= 1 ? 1 : index / (ranked.length - 1)
-  m.grade = GRADES[Math.min(4, Math.floor(p * 5))]
-})
-for (const m of models) if (!m.grade) m.grade = null
-
-// Pareto frontier on (higher intelligence, lower cost).
+// Grade by Pareto layer on (higher intelligence, lower cost) — the same read as
+// AA's "Intelligence Index vs. Cost per Task" chart. Layer 1 is the frontier
+// (nothing is both smarter and cheaper) and earns S; each peel below steps down
+// a letter. A cheap model that a smarter, cheaper model already beats is NOT on
+// the frontier and therefore never scores S.
 const priced = models.filter((m) => m.cost !== null)
-const frontier = new Set(
-  priced
-    .filter((a) => !priced.some((b) => b !== a && b.intelligence >= a.intelligence && b.cost <= a.cost && (b.intelligence > a.intelligence || b.cost < a.cost)))
-    .map((m) => m.slug),
-)
+const dominatedBy = (a, b) =>
+  b !== a &&
+  b.intelligence >= a.intelligence &&
+  b.cost <= a.cost &&
+  (b.intelligence > a.intelligence || b.cost < a.cost)
+
+const layers = []
+let remaining = [...priced].sort((a, b) => b.intelligence - a.intelligence || a.cost - b.cost)
+while (remaining.length) {
+  const layer = remaining.filter((a) => !remaining.some((b) => dominatedBy(a, b)))
+  if (!layer.length) break
+  layers.push(layer)
+  const taken = new Set(layer)
+  remaining = remaining.filter((m) => !taken.has(m))
+}
+
+const LAYER_GRADES = ['S', 'A', 'B', 'C']
+for (const [index, layer] of layers.entries()) {
+  for (const m of layer) {
+    m.layer = index + 1
+    m.grade = LAYER_GRADES[index] || 'D'
+  }
+}
+for (const m of models) {
+  if (!m.layer) {
+    m.layer = null
+    m.grade = null
+  }
+}
+
+const frontier = new Set(layers[0] ? layers[0].map((m) => m.slug) : [])
+
+const layerSummary = layers.map((layer, index) => `${LAYER_GRADES[index] || 'D'}:${layer.length}`).join(' ')
 
 const payload = {
   source: leaderboard.source,
@@ -94,6 +117,7 @@ const payload = {
     g: m.tier,
     q: m.score,
     r: m.grade,
+    y: m.layer,
     p: frontier.has(m.slug) ? 1 : 0,
   })),
 }
@@ -108,3 +132,4 @@ writeFileSync(join(ROOT, 'client.js'), out)
 console.log(
   `built ${models.length} models (${priced.length} priced, ${frontier.size} on the frontier) -> data/aa.json, client.js (${out.length} bytes)`,
 )
+console.log(`pareto layers: ${layerSummary}`)
