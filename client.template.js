@@ -190,6 +190,8 @@ window.__ModuleLoader__.load({
           : row
 
         const isTrigger = props.placement === 'trigger'
+        // Collapsed composer stays clean: the numbers belong to the open menu.
+        if (isTrigger) return label
         const title = [
           row.n,
           readLabel(t, 'badge.intelligence', 'Intelligence index') + ': ' + iqText(view),
@@ -276,7 +278,8 @@ window.__ModuleLoader__.load({
         const menuSelector =
           '[role="menu"], [role="listbox"], [data-radix-popper-content-wrapper], [data-state="open"]'
         const found = document.querySelectorAll(menuSelector)
-        const roots = found.length ? Array.from(found) : [document.body]
+        if (!found.length) return
+        const roots = Array.from(found)
         const norm = (value) =>
           String(value || '')
             .replace(/[\s\u2713\u2714]/g, '')
