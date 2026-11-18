@@ -142,10 +142,12 @@ window.__ModuleLoader__.load({
 
 
     /** The last model the owner marked as selected; the menu panel reads this. */
-    const selection = { row: null, listeners: new Set() }
-    const publishSelection = (row) => {
-      if (selection.row === row) return
+    const selection = { row: null, name: '', listeners: new Set() }
+    const publishSelection = (row, name) => {
+      const changed = selection.row !== row || selection.name !== name
       selection.row = row
+      selection.name = name || ''
+      if (!changed) return
       for (const listener of [...selection.listeners]) listener()
     }
     const subscribeSelection = (listener) => {
@@ -179,7 +181,7 @@ window.__ModuleLoader__.load({
         )
         const row = lookup(model.id, model.name)
         if (!row) return label
-        if (props.selected) publishSelection(row)
+        if (props.selected) publishSelection(row, name)
 
         // A row that names its effort (e.g. "GPT-6.2 Astra (max)") shows that
         // single point; otherwise the badge shows the whole range.
@@ -278,7 +280,6 @@ window.__ModuleLoader__.load({
         const menuSelector =
           '[role="menu"], [role="listbox"], [data-radix-popper-content-wrapper], [data-state="open"]'
         const found = document.querySelectorAll(menuSelector)
-        if (!found.length) return
         const roots = Array.from(found)
         const norm = (value) =>
           String(value || '')
@@ -358,6 +359,55 @@ window.__ModuleLoader__.load({
             if (trailingIcon) top.insertBefore(badge, last)
             else top.appendChild(badge)
           }
+        }
+
+        // Collapsed composer: the effort chip next to the model name keeps its
+        // score. Find a short button/span whose text is the label and whose
+        // nearby ancestor also contains the selected model's name.
+        const name = selection.name
+        if (!name) return
+        const inlineSelector = 'button, [role="button"]'
+        for (const node of document.querySelectorAll(inlineSelector)) {
+          const text = node.textContent || ''
+          if (!text || text.length > 24) continue
+          if (node.querySelector('[' + BADGE_ATTR + ']')) continue
+          const label = norm(text)
+          const key = LABELS.find((value) => label === value)
+          if (!key) continue
+          const point = points.get(key)
+          if (!point) continue
+          if (node.closest && node.closest(menuSelector)) continue
+          if (node.closest && node.closest('[' + POS_ATTR + ']')) continue
+          let context = node.parentElement
+          let hasName = false
+          for (let depth = 0; context && depth < 4; depth++, context = context.parentElement) {
+            if ((context.textContent || '').includes(name)) {
+              hasName = true
+              break
+            }
+          }
+          if (!hasName) continue
+          const badge = document.createElement('span')
+          badge.setAttribute(BADGE_ATTR, '')
+          badge.textContent = 'IQ ' + round(point.i) + ' · ' + (point.r || '—')
+          badge.style.cssText = [
+            'margin-inline-start:4px',
+            'padding:0 5px',
+            'height:16px',
+            'display:inline-flex',
+            'align-items:center',
+            'border-radius:8px',
+            'background:var(--dsw-alias-bg-layer-2)',
+            'color:var(--dsw-alias-label-secondary)',
+            'font-size:10px',
+            'line-height:14px',
+            'font-weight:600',
+            'font-variant-numeric:tabular-nums',
+            'white-space:nowrap',
+            'flex:none',
+            'pointer-events:none',
+          ].join(';')
+          node.appendChild(badge)
         }
       }
 

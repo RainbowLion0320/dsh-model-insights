@@ -15,6 +15,8 @@ actually pick from, so a long model list stops being a memory test.
 - **Hovering** lists every effort explicitly: `max · IQ 62 · $4.00/task · S`, and so on.
 - A row whose own name carries an effort (`GPT-6.2 Astra (max)`) shows that single point instead of the
   range.
+- **Collapsed composer**: the model name stays clean, and the reasoning-effort chip keeps the grade of
+  the effort you are on (`Max  IQ 33 · C`). The model's IQ range only appears once the menu is open.
 - **Grades inside the native reasoning menu**: opening the model menu's reasoning submenu shows each
   effort's `IQ · grade` on the right of the row (`Max  IQ 51 · B`). The menu is owner-rendered with no
   extension slot, so the rows are decorated in place; if a future DSH release changes that markup the
