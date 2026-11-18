@@ -271,11 +271,11 @@ window.__ModuleLoader__.load({
       return Math.max(1, Math.min(5, 1 + Math.round(clamped * 4)))
     }
 
-    const buildRowBadge = (point) => {
+    const buildRowBadge = (point, inline) => {
       const badge = document.createElement('span')
       badge.setAttribute(BADGE_ATTR, '')
       badge.style.cssText = [
-        'margin-inline-start:auto',
+        'margin-inline-start:' + (inline ? '4px' : 'auto'),
         'padding:0 5px',
         'height:16px',
         'display:inline-flex',
@@ -427,26 +427,7 @@ window.__ModuleLoader__.load({
             if (!key) continue
             const point = points.get(key)
             if (!point) continue
-            const badge = document.createElement('span')
-            badge.setAttribute(BADGE_ATTR, '')
-            badge.textContent = 'IQ ' + round(point.i) + ' · ' + (point.r || '—')
-            badge.style.cssText = [
-              'margin-inline-start:4px',
-              'padding:0 5px',
-              'height:16px',
-              'display:inline-flex',
-              'align-items:center',
-              'border-radius:8px',
-              'background:var(--dsw-alias-bg-layer-2)',
-              'color:var(--dsw-alias-label-secondary)',
-              'font-size:10px',
-              'line-height:14px',
-              'font-weight:600',
-              'font-variant-numeric:tabular-nums',
-              'white-space:nowrap',
-              'flex:none',
-              'pointer-events:none',
-            ].join(';')
+            const badge = buildRowBadge(point, true)
             node.appendChild(badge)
             break
           }
