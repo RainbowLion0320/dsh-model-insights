@@ -19,13 +19,14 @@ claude-opus-5-5            ● IQ 35–59     · B–D ◆
 **推理档位直接带分数**：展开模型菜单里的「推理等级」子菜单时，每个档位（Default / Low / Medium / High / Xhigh / Max）右侧会显示该模型在这一档的 `IQ · 等级`：
 
 ```
-Default   IQ 31 · B
-Low       IQ 29 · S
-Medium    IQ 38 · S
-High      IQ 42 · S
-Xhigh     IQ 45 · A
-Max       IQ 51 · B
+Default   ▮▯▯▯▯ $0.43 · IQ 19 D
+Low       ▮▮▯▯▯ $0.42 · IQ 19 D
+Medium    ▮▮▯▯▯ $0.53 · IQ 24 D
+High      ▮▮▯▯▯ $0.46 · IQ 29 D
+Max       ▮▮▮▯▯ $0.60 · IQ 33 C
 ```
+
+左边五格是成本刻度（像手机电量）：**全榜最便宜 = 1 格，最贵 = 5 格**，对数刻度，所以中间价位的差异也看得见；数字是 AA 的单任务成本。
 
 **收起状态**只在推理档芯片上保留当前档位的分数，模型名不再挂区间：
 

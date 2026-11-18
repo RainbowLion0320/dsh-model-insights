@@ -259,6 +259,73 @@ window.__ModuleLoader__.load({
     const EFFORT_LABELS = new Set(['default', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'])
     const BADGE_ATTR = 'data-dsh-model-insights'
 
+
+    /** Cost shown the way a phone shows battery: five cells, log-scaled. */
+    const costLevel = (cost) => {
+      const range = AA.costRange
+      if (!range || !Number.isFinite(cost) || cost <= 0) return 0
+      const [lo, hi] = range
+      if (!(hi > lo)) return 3
+      const t = Math.log(cost / lo) / Math.log(hi / lo)
+      const clamped = Math.max(0, Math.min(1, t))
+      return Math.max(1, Math.min(5, 1 + Math.round(clamped * 4)))
+    }
+
+    const buildRowBadge = (point) => {
+      const badge = document.createElement('span')
+      badge.setAttribute(BADGE_ATTR, '')
+      badge.style.cssText = [
+        'margin-inline-start:auto',
+        'padding:0 5px',
+        'height:16px',
+        'display:inline-flex',
+        'align-items:center',
+        'gap:4px',
+        'border-radius:8px',
+        'background:var(--dsw-alias-bg-layer-2)',
+        'color:var(--dsw-alias-label-secondary)',
+        'font-size:10px',
+        'line-height:14px',
+        'font-weight:600',
+        'font-variant-numeric:tabular-nums',
+        'white-space:nowrap',
+        'flex:none',
+        'pointer-events:none',
+      ].join(';')
+
+      const battery = document.createElement('span')
+      battery.style.cssText = 'display:inline-flex;gap:1px;align-items:flex-end;flex:none'
+      const level = costLevel(point.c)
+      for (let index = 0; index < 5; index++) {
+        const cell = document.createElement('span')
+        const filled = index < level
+        cell.style.cssText =
+          'width:3px;height:' +
+          (6 + index * 1.5) +
+          'px;border-radius:1px;box-sizing:border-box;' +
+          (filled
+            ? 'background:var(--dsw-alias-state-warn-primary);'
+            : 'background:transparent;border:1px solid var(--dsw-alias-border-l2);')
+        battery.appendChild(cell)
+      }
+      badge.appendChild(battery)
+
+      const cost = document.createElement('span')
+      cost.textContent = point.c === null || point.c === undefined ? '—' : money(point.c)
+      badge.appendChild(cost)
+
+      const sep = document.createElement('span')
+      sep.textContent = '·'
+      sep.style.opacity = '0.45'
+      badge.appendChild(sep)
+
+      const score = document.createElement('span')
+      score.textContent = 'IQ ' + round(point.i) + ' ' + (point.r || '—')
+      badge.appendChild(score)
+
+      return badge
+    }
+
     const installEffortBadges = () => {
       if (typeof document === 'undefined' || typeof MutationObserver === 'undefined') return () => {}
       let frame = 0
@@ -316,26 +383,7 @@ window.__ModuleLoader__.load({
             if (top.querySelector && top.querySelector('[' + BADGE_ATTR + ']')) continue
             const point = points.get(key)
             if (!point) continue
-            const badge = document.createElement('span')
-            badge.setAttribute(BADGE_ATTR, '')
-            badge.textContent = 'IQ ' + round(point.i) + ' · ' + (point.r || '—')
-            badge.style.cssText = [
-              'margin-inline-start:auto',
-              'padding:0 5px',
-              'height:16px',
-              'display:inline-flex',
-              'align-items:center',
-              'border-radius:8px',
-              'background:var(--dsw-alias-bg-layer-2)',
-              'color:var(--dsw-alias-label-secondary)',
-              'font-size:10px',
-              'line-height:14px',
-              'font-weight:600',
-              'font-variant-numeric:tabular-nums',
-              'white-space:nowrap',
-              'flex:none',
-              'pointer-events:none',
-            ].join(';')
+            const badge = buildRowBadge(point)
             let rowIsFlex = true
             try {
               rowIsFlex = /flex|grid/.test(window.getComputedStyle(top).display)

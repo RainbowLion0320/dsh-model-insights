@@ -103,6 +103,12 @@ for (const entry of releases.values()) {
 
 rows.sort((a, b) => RANK[a.gr[0]] - RANK[b.gr[0]] || b.iq[1] - a.iq[1])
 
+const costValues = points.map((p) => p.cost).filter((value) => Number.isFinite(value))
+const costRange = [
+  Math.min(...costValues.filter((value) => value > 0)),
+  Math.max(...costValues),
+]
+
 const payload = {
   source: 'https://artificialanalysis.ai/models',
   index: 'Artificial Analysis Intelligence Index',
@@ -111,6 +117,7 @@ const payload = {
   count: rows.length,
   points: points.length,
   layers: layers.length,
+  costRange,
   models: rows,
 }
 
