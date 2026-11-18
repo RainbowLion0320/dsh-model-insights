@@ -290,13 +290,12 @@ window.__ModuleLoader__.load({
 
     /** Cost shown the way a phone shows battery: five cells, log-scaled. */
     const costLevel = (cost) => {
-      const range = AA.costRange
-      if (!range || !Number.isFinite(cost) || cost <= 0) return 0
-      const [lo, hi] = range
-      if (!(hi > lo)) return 3
-      const t = Math.log(cost / lo) / Math.log(hi / lo)
-      const clamped = Math.max(0, Math.min(1, t))
-      return Math.max(1, Math.min(5, 1 + Math.round(clamped * 4)))
+      const bands = AA.costBands
+      if (!Number.isFinite(cost) || cost <= 0) return 1
+      if (!bands || bands.length !== 4) return 3
+      let level = 1
+      for (const band of bands) if (cost > band) level++
+      return Math.min(5, level)
     }
 
     /** Cheap reads green, mid amber, expensive red. */

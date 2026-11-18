@@ -103,11 +103,14 @@ for (const entry of releases.values()) {
 
 rows.sort((a, b) => RANK[a.gr[0]] - RANK[b.gr[0]] || b.iq[1] - a.iq[1])
 
-const costValues = points.map((p) => p.cost).filter((value) => Number.isFinite(value))
-const costRange = [
-  Math.min(...costValues.filter((value) => value > 0)),
-  Math.max(...costValues),
-]
+// Quintile boundaries: each battery level holds about a fifth of the prices,
+// so a log-normal price spread does not pile everything into one cell.
+const sortedCosts = points
+  .map((p) => p.cost)
+  .filter((value) => Number.isFinite(value) && value > 0)
+  .sort((a, b) => a - b)
+const costQuantile = (p) => sortedCosts[Math.min(sortedCosts.length - 1, Math.floor(p * sortedCosts.length))]
+const costBands = [costQuantile(0.2), costQuantile(0.4), costQuantile(0.6), costQuantile(0.8)]
 
 const payload = {
   source: 'https://artificialanalysis.ai/models',
@@ -117,7 +120,7 @@ const payload = {
   count: rows.length,
   points: points.length,
   layers: layers.length,
-  costRange,
+  costBands,
   models: rows,
 }
 
