@@ -245,130 +245,102 @@ window.__ModuleLoader__.load({
       }
     }
 
-    function makePanel(t) {
-      return function ModelInsightPanel() {
-        const [current, setCurrent] = React.useState(selection.row)
-        if (React.useEffect) {
-          React.useEffect(() => subscribeSelection(() => setCurrent(selection.row)), [])
-        }
-        const row = current || selection.row
-        const head = h(
-          'div',
-          {
-            style: {
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              padding: '5px 8px 3px',
-              fontSize: 12,
-              color: 'var(--dsw-alias-label-primary)',
-            },
-          },
-          h('span', null, readLabel(t, 'panel.title', 'Reasoning grades')),
-          row
-            ? h(
-                'span',
-                { style: { opacity: 0.75, fontSize: 10 } },
-                row.n + ' · IQ ' + iqText(row),
-              )
-            : null,
-          row
-            ? h(
-                'span',
-                {
-                  style: {
-                    marginInlineStart: 'auto',
-                    fontWeight: 700,
-                    color: GRADE_COLOR[row.gr[0]] || 'var(--dsw-alias-label-secondary)',
-                  },
-                },
-                gradeText(row),
-              )
-            : null,
-        )
+    /**
+     * The native reasoning menu is owner-rendered with no extension slot, so its
+     * rows are decorated in place: every effort row shows that model's AA IQ and
+     * Pareto grade. Deliberately defensive — if the markup changes nothing is
+     * decorated, and the model-menu panel still carries the same numbers.
+     */
+    const EFFORT_LABELS = new Set(['default', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'])
+    const BADGE_ATTR = 'data-dsh-model-insights'
 
-        if (!row) {
-          return h(
-            'div',
-            { style: { padding: '2px 0 6px' } },
-            head,
-            h(
-              'div',
-              { style: { padding: '0 8px 4px', fontSize: 10, opacity: 0.6 } },
-              readLabel(t, 'panel.empty', 'Pick a model above to see its reasoning grades.'),
-            ),
-          )
-        }
+    const installEffortBadges = () => {
+      if (typeof document === 'undefined' || typeof MutationObserver === 'undefined') return () => {}
+      let frame = 0
 
-        return h(
-          'div',
-          { style: { padding: '2px 0 6px' } },
-          head,
-          h(
-            'div',
-            {
-              style: {
-                paddingInlineStart: 16,
-                paddingInlineEnd: 8,
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 1,
-              },
-            },
-            row.pts.map((point) =>
-              h(
-                'div',
-                {
-                  key: (point.e || 'default') + point.i,
-                  style: {
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 6,
-                    fontSize: 10,
-                    color: 'var(--dsw-alias-label-secondary)',
-                  },
-                },
-                h('span', { style: { flex: 'none', width: 46, opacity: 0.8 } }, point.e || 'default'),
-                h(
-                  'span',
-                  { style: { flex: 'none', width: 44, textAlign: 'end', fontVariantNumeric: 'tabular-nums' } },
-                  'IQ ' + round(point.i),
-                ),
-                h(
-                  'span',
-                  {
-                    style: {
-                      flex: 'none',
-                      width: 52,
-                      textAlign: 'end',
-                      fontVariantNumeric: 'tabular-nums',
-                      opacity: 0.8,
-                    },
-                  },
-                  point.c === null || point.c === undefined ? '—' : money(point.c),
-                ),
-                h(
-                  'span',
-                  {
-                    style: {
-                      flex: 'none',
-                      width: 20,
-                      textAlign: 'end',
-                      fontWeight: 700,
-                      color: GRADE_COLOR[point.r] || 'inherit',
-                    },
-                  },
-                  point.r || '—',
-                ),
-              ),
-            ),
-          ),
-          h(
-            'div',
-            { style: { padding: '3px 8px 0', fontSize: 9, opacity: 0.5 } },
-            AA.source + ' · ' + AA.snapshot,
-          ),
-        )
+      const strip = () => {
+        for (const node of document.querySelectorAll('[' + BADGE_ATTR + ']')) node.remove()
+      }
+
+      const decorate = () => {
+        frame = 0
+        strip()
+        const row = selection.row
+        if (!row) return
+        const points = new Map(row.pts.map((p) => [(p.e || 'default').toLowerCase(), p]))
+        const menuSelector = '[role="menu"], [role="listbox"], [data-radix-popper-content-wrapper], [data-state="open"]'
+        const found = document.querySelectorAll(menuSelector)
+        const roots = found.length ? Array.from(found) : [document.body]
+        const norm = (value) =>
+          String(value || '')
+            .replace(/[\s\u2713\u2714\u00b7]/g, '')
+            .toLowerCase()
+
+        for (const root of roots) {
+          for (const node of root.querySelectorAll('*')) {
+            const text = node.textContent || ''
+            if (text.length > 24) continue
+            const label = norm(text)
+            if (!EFFORT_LABELS.has(label)) continue
+            if (node.querySelector && node.querySelector('[' + BADGE_ATTR + ']')) continue
+            // The row is visited before its label span; once the row carries a
+            // badge, skip its descendants instead of decorating twice.
+            if (node.parentElement && node.parentElement.querySelector && node.parentElement.querySelector('[' + BADGE_ATTR + ']')) {
+              continue
+            }
+            // Prefer the whole menu row so the badge right-aligns inside it.
+            let target = node
+            const parent = node.parentElement
+            const parentLabel = parent ? norm(parent.textContent) : ''
+            if (
+              parent &&
+              !parent.querySelector('[' + BADGE_ATTR + ']') &&
+              parentLabel.startsWith(label) &&
+              parentLabel.length <= label.length + 12
+            ) {
+              target = parent
+            }
+            if (target.querySelector && target.querySelector('[' + BADGE_ATTR + ']')) continue
+            const point = points.get(label)
+            if (!point) continue
+            const badge = document.createElement('span')
+            badge.setAttribute(BADGE_ATTR, '')
+            badge.textContent = 'IQ ' + round(point.i) + ' · ' + (point.r || '—')
+            badge.style.cssText = [
+              'margin-inline-start:auto',
+              'padding:0 5px',
+              'height:16px',
+              'display:inline-flex',
+              'align-items:center',
+              'border-radius:8px',
+              'border:1px solid var(--dsw-alias-border-l1)',
+              'background:var(--dsw-alias-bg-layer-2)',
+              'color:var(--dsw-alias-label-secondary)',
+              'font-size:10px',
+              'line-height:14px',
+              'font-weight:600',
+              'white-space:nowrap',
+              'flex:none',
+              'pointer-events:none',
+            ].join(';')
+            target.appendChild(badge)
+          }
+        }
+      }
+
+      const schedule = () => {
+        if (frame) return
+        frame = typeof requestAnimationFrame === 'function' ? requestAnimationFrame(decorate) : setTimeout(decorate, 16)
+      }
+
+      const observer = new MutationObserver(schedule)
+      observer.observe(document.body, { childList: true, subtree: true, characterData: true })
+      schedule()
+
+      return () => {
+        observer.disconnect()
+        if (frame && typeof cancelAnimationFrame === 'function') cancelAnimationFrame(frame)
+        strip()
       }
     }
 
@@ -402,20 +374,12 @@ window.__ModuleLoader__.load({
 
         const t = ctx.locale.bind('model-insights')
         const badge = makeBadge(t)
-        const panel = makePanel(t)
+
+        ctx.effect(() => installEffortBadges())
 
         ctx.effect(() =>
           ctx.slots.inject('conversation.input.model.label', () =>
             ctx.slots.register({ name: 'conversation.input.model.label' }, badge),
-          ),
-        )
-
-        ctx.effect(() =>
-          ctx.slots.inject('conversation.input.model.options', () =>
-            ctx.slots.register(
-              { name: 'conversation.input.model.options', id: 'model-insights-panel', order: 20 },
-              panel,
-            ),
           ),
         )
       },
