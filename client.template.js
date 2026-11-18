@@ -155,6 +155,33 @@ window.__ModuleLoader__.load({
       return () => selection.listeners.delete(listener)
     }
 
+
+    /** Battery cells rendered as React nodes (model rows show no price text). */
+    const batteryNode = (cost) => {
+      const level = costLevel(cost)
+      return h(
+        'span',
+        {
+          key: 'battery',
+          'aria-hidden': true,
+          style: { display: 'inline-flex', gap: 1, alignItems: 'flex-end', flex: 'none' },
+        },
+        Array.from({ length: 5 }, (_, index) =>
+          h('span', {
+            key: index,
+            style: {
+              width: 3,
+              height: 6 + index * 1.5,
+              borderRadius: 1,
+              boxSizing: 'border-box',
+              background: index < level ? 'var(--dsw-alias-state-warn-primary)' : 'transparent',
+              border: index < level ? 'none' : '1px solid var(--dsw-alias-border-l2)',
+            },
+          }),
+        ),
+      )
+    }
+
     function makeBadge(t) {
       return function ModelInsightBadge(props) {
         const model = props && props.model
@@ -225,6 +252,7 @@ window.__ModuleLoader__.load({
           label,
           pill(
             [
+              batteryNode(view.d ? view.d.c : null),
               h('span', { key: 'iq' }, 'IQ ' + iqText(view)),
               h('span', { key: 'sep', style: { opacity: 0.45 } }, '·'),
               h(

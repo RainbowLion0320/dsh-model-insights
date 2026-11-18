@@ -5,10 +5,12 @@
 模型配多了，下拉列表里全是名字，选谁全靠记忆。这个插件把 [Artificial Analysis](https://artificialanalysis.ai/) 的公开数据搬进每一行：
 
 ```
-kimi-k3.1-pro              ● IQ 46        · B
-gpt-6.2-astra              ● IQ 46–62     · S–B ◆
-claude-opus-5-5            ● IQ 35–59     · B–D ◆
+kimi-k3.1-pro        ▮▮▯▯▯  IQ 46        · B
+gpt-6.2-astra        ▮▮▯▯▯  IQ 46–62     · S–B ◆
+claude-opus-5-5      ▮▮▮▮▮  IQ 35–59     · B–D ◆
 ```
+
+模型行只放电量格、不写价格数字；刻度同样是全榜最便宜 1 格、最贵 5 格。
 
 - **IQ 区间**：同一模型在 `low → max` 各推理档的智力指数范围；只有一个档位时显示单值
 - **等级区间**：S/A/B/C/D，按**每个推理档的点**在「智力 vs 单任务成本」平面上的帕累托层计算；跨档就显示成 `S–B`
