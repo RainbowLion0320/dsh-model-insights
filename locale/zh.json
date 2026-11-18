@@ -1,0 +1,7 @@
+{
+  "meta": {
+    "title": "模型洞察（AA 智力 vs 成本）",
+    "description": "在模型选择器的每一行旁边显示 Artificial Analysis 的智力指数与单任务加权成本，并在模型菜单内提供按性价比排序的榜单面板。分数来自内置的 AA 榜单快照；匹配不到的模型不显示徽标。",
+    "detail": "docs/DETAIL.md"
+  }
+}

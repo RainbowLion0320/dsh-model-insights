@@ -1,0 +1,7 @@
+{
+  "meta": {
+    "title": "Model insights (AA intelligence vs cost)",
+    "description": "Shows the Artificial Analysis intelligence index and weighted cost per task beside every model in the composer model picker, plus a value-ranked panel inside the model menu. The score is a bundled snapshot of the public AA leaderboard; models it cannot match show no badge.",
+    "detail": "docs/DETAIL.md"
+  }
+}

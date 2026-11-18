@@ -1,0 +1,54 @@
+{
+ "source": "https://artificialanalysis.ai/models/<slug>",
+ "models": [
+  {
+   "slug": "gpt-6-astra",
+   "name": "GPT-6 Astra",
+   "intelligence": 57,
+   "cost": 6.24,
+   "time": 19.9
+  },
+  {
+   "slug": "gpt-6-1-sol",
+   "name": "GPT-6.1 Sol",
+   "intelligence": 55,
+   "cost": 1.27,
+   "time": 23.3
+  },
+  {
+   "slug": "gpt-6-sol",
+   "name": "GPT-6 Sol",
+   "intelligence": 44,
+   "cost": 2.47,
+   "time": 7.5
+  },
+  {
+   "slug": "claude-opus-5",
+   "name": "Claude Opus 5",
+   "intelligence": 44,
+   "cost": 11.82,
+   "time": 24.6
+  },
+  {
+   "slug": "gpt-5-6-terra",
+   "name": "GPT-5.6 Terra",
+   "intelligence": 32,
+   "cost": 3.73,
+   "time": 12.3
+  },
+  {
+   "slug": "gemini-3-8-flash",
+   "name": "Gemini 3.8 Flash",
+   "intelligence": 31,
+   "cost": 7.77,
+   "time": 14.2
+  },
+  {
+   "slug": "gpt-5-6-luna",
+   "name": "GPT-5.6 Luna",
+   "intelligence": 24,
+   "cost": 0.33,
+   "time": 9.8
+  }
+ ]
+}

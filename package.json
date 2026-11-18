@@ -1,0 +1,56 @@
+{
+  "name": "dsh-model-insights",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Artificial Analysis intelligence index and value grade beside every model in the DeepSeek Harness composer model picker.",
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "artificial-analysis",
+    "llm-benchmark"
+  ],
+  "license": "MIT",
+  "author": "RainbowLion0320",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/RainbowLion0320/dsh-model-insights.git"
+  },
+  "homepage": "https://github.com/RainbowLion0320/dsh-model-insights#readme",
+  "bugs": "https://github.com/RainbowLion0320/dsh-model-insights/issues",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "cordis.patch.yml",
+    "data",
+    "docs",
+    "locale/*.json",
+    "icon.svg"
+  ],
+  "scripts": {
+    "fetch": "node tools/fetch-aa.mjs",
+    "enrich": "node tools/enrich.mjs",
+    "build": "node tools/build.mjs",
+    "refresh": "node tools/fetch-aa.mjs && node tools/build.mjs"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-conversation",
+        "@deepseek-ai/dsh-client-ui-model-selection"
+      ]
+    }
+  }
+}
