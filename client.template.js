@@ -165,6 +165,7 @@ window.__ModuleLoader__.load({
           'span',
           {
             key: 'name',
+            'data-dsh-mi-name': name,
             style: {
               minWidth: 0,
               flex: '0 1 auto',
@@ -361,53 +362,46 @@ window.__ModuleLoader__.load({
           }
         }
 
-        // Collapsed composer: the effort chip next to the model name keeps its
-        // score. Find a short button/span whose text is the label and whose
-        // nearby ancestor also contains the selected model's name.
-        const name = selection.name
-        if (!name) return
-        const inlineSelector = 'button, [role="button"]'
-        for (const node of document.querySelectorAll(inlineSelector)) {
-          const text = node.textContent || ''
-          if (!text || text.length > 24) continue
-          if (node.querySelector('[' + BADGE_ATTR + ']')) continue
-          const label = norm(text)
-          const key = LABELS.find((value) => label === value)
-          if (!key) continue
-          const point = points.get(key)
-          if (!point) continue
-          if (node.closest && node.closest(menuSelector)) continue
-          if (node.closest && node.closest('[' + POS_ATTR + ']')) continue
-          let context = node.parentElement
-          let hasName = false
-          for (let depth = 0; context && depth < 4; depth++, context = context.parentElement) {
-            if ((context.textContent || '').includes(name)) {
-              hasName = true
-              break
-            }
+        // Collapsed composer: the effort chip beside the model name keeps its
+        // grade. Our own label carries data-dsh-mi-name, so this looks only at
+        // the toolbar around it instead of scanning the whole document.
+        for (const anchor of document.querySelectorAll('[data-dsh-mi-name]')) {
+          let scope = anchor
+          for (let depth = 0; depth < 6 && scope.parentElement; depth++) scope = scope.parentElement
+          for (const node of scope.querySelectorAll('*')) {
+            if (node === anchor) continue
+            if (node.contains && node.contains(anchor)) continue
+            if (node.querySelector && node.querySelector('[' + BADGE_ATTR + ']')) continue
+            if (node.closest && node.closest(menuSelector)) continue
+            const text = (node.textContent || '').trim()
+            if (!text || text.length > 12) continue
+            const key = LABELS.find((value) => text.toLowerCase() === value)
+            if (!key) continue
+            const point = points.get(key)
+            if (!point) continue
+            const badge = document.createElement('span')
+            badge.setAttribute(BADGE_ATTR, '')
+            badge.textContent = 'IQ ' + round(point.i) + ' · ' + (point.r || '—')
+            badge.style.cssText = [
+              'margin-inline-start:4px',
+              'padding:0 5px',
+              'height:16px',
+              'display:inline-flex',
+              'align-items:center',
+              'border-radius:8px',
+              'background:var(--dsw-alias-bg-layer-2)',
+              'color:var(--dsw-alias-label-secondary)',
+              'font-size:10px',
+              'line-height:14px',
+              'font-weight:600',
+              'font-variant-numeric:tabular-nums',
+              'white-space:nowrap',
+              'flex:none',
+              'pointer-events:none',
+            ].join(';')
+            node.appendChild(badge)
+            break
           }
-          if (!hasName) continue
-          const badge = document.createElement('span')
-          badge.setAttribute(BADGE_ATTR, '')
-          badge.textContent = 'IQ ' + round(point.i) + ' · ' + (point.r || '—')
-          badge.style.cssText = [
-            'margin-inline-start:4px',
-            'padding:0 5px',
-            'height:16px',
-            'display:inline-flex',
-            'align-items:center',
-            'border-radius:8px',
-            'background:var(--dsw-alias-bg-layer-2)',
-            'color:var(--dsw-alias-label-secondary)',
-            'font-size:10px',
-            'line-height:14px',
-            'font-weight:600',
-            'font-variant-numeric:tabular-nums',
-            'white-space:nowrap',
-            'flex:none',
-            'pointer-events:none',
-          ].join(';')
-          node.appendChild(badge)
         }
       }
 
