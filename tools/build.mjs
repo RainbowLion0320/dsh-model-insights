@@ -52,13 +52,6 @@ for (const m of models) {
   m.tier = m.value === null ? 0 : m.value >= hi ? 3 : m.value >= lo ? 2 : 1
 }
 
-// Log-scaled 0-100 value score (kept for the tooltip and panel ordering).
-const logMin = Math.log(values[0])
-const logMax = Math.log(values[values.length - 1])
-for (const m of models) {
-  m.score = m.value === null ? null : Math.round((100 * (Math.log(m.value) - logMin)) / (logMax - logMin))
-}
-
 // Grade by Pareto layer on (higher intelligence, lower cost) — the same read as
 // AA's "Intelligence Index vs. Cost per Task" chart. Layer 1 is the frontier
 // (nothing is both smarter and cheaper) and earns S; each peel below steps down
@@ -115,7 +108,6 @@ const payload = {
     w: m.context,
     v: m.value,
     g: m.tier,
-    q: m.score,
     r: m.grade,
     y: m.layer,
     p: frontier.has(m.slug) ? 1 : 0,
