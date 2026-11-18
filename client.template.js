@@ -258,8 +258,13 @@ window.__ModuleLoader__.load({
       if (typeof document === 'undefined' || typeof MutationObserver === 'undefined') return () => {}
       let frame = 0
 
+      const POS_ATTR = 'data-dsh-model-insights-anchor'
       const strip = () => {
         for (const node of document.querySelectorAll('[' + BADGE_ATTR + ']')) node.remove()
+        for (const node of document.querySelectorAll('[' + POS_ATTR + ']')) {
+          node.style.position = ''
+          node.removeAttribute(POS_ATTR)
+        }
       }
 
       const decorate = () => {
@@ -268,40 +273,43 @@ window.__ModuleLoader__.load({
         const row = selection.row
         if (!row) return
         const points = new Map(row.pts.map((p) => [(p.e || 'default').toLowerCase(), p]))
-        const menuSelector = '[role="menu"], [role="listbox"], [data-radix-popper-content-wrapper], [data-state="open"]'
+        const menuSelector =
+          '[role="menu"], [role="listbox"], [data-radix-popper-content-wrapper], [data-state="open"]'
         const found = document.querySelectorAll(menuSelector)
         const roots = found.length ? Array.from(found) : [document.body]
         const norm = (value) =>
           String(value || '')
-            .replace(/[\s\u2713\u2714\u00b7]/g, '')
+            .replace(/[\s\u2713\u2714]/g, '')
             .toLowerCase()
 
+        const LABELS = Array.from(EFFORT_LABELS)
+
         for (const root of roots) {
+          // Collect every element whose whole text is one effort label.
+          const candidates = new Map()
           for (const node of root.querySelectorAll('*')) {
             const text = node.textContent || ''
-            if (text.length > 24) continue
+            if (!text || text.length > 28) continue
             const label = norm(text)
-            if (!EFFORT_LABELS.has(label)) continue
-            if (node.querySelector && node.querySelector('[' + BADGE_ATTR + ']')) continue
-            // The row is visited before its label span; once the row carries a
-            // badge, skip its descendants instead of decorating twice.
-            if (node.parentElement && node.parentElement.querySelector && node.parentElement.querySelector('[' + BADGE_ATTR + ']')) {
-              continue
-            }
-            // Prefer the whole menu row so the badge right-aligns inside it.
-            let target = node
-            const parent = node.parentElement
-            const parentLabel = parent ? norm(parent.textContent) : ''
-            if (
-              parent &&
-              !parent.querySelector('[' + BADGE_ATTR + ']') &&
-              parentLabel.startsWith(label) &&
-              parentLabel.length <= label.length + 12
+            const key = LABELS.find((value) => label.startsWith(value) && label.length <= value.length + 4)
+            if (key) candidates.set(node, key)
+          }
+
+          const decorated = new Set()
+          for (const [node, key] of candidates) {
+            // Climb to the outermost matching element: that is the menu row.
+            let top = node
+            while (
+              top.parentElement &&
+              top.parentElement !== root &&
+              candidates.has(top.parentElement)
             ) {
-              target = parent
+              top = top.parentElement
             }
-            if (target.querySelector && target.querySelector('[' + BADGE_ATTR + ']')) continue
-            const point = points.get(label)
+            if (top === root || decorated.has(top)) continue
+            decorated.add(top)
+            if (top.querySelector && top.querySelector('[' + BADGE_ATTR + ']')) continue
+            const point = points.get(key)
             if (!point) continue
             const badge = document.createElement('span')
             badge.setAttribute(BADGE_ATTR, '')
@@ -313,17 +321,39 @@ window.__ModuleLoader__.load({
               'display:inline-flex',
               'align-items:center',
               'border-radius:8px',
-              'border:1px solid var(--dsw-alias-border-l1)',
               'background:var(--dsw-alias-bg-layer-2)',
               'color:var(--dsw-alias-label-secondary)',
               'font-size:10px',
               'line-height:14px',
               'font-weight:600',
+              'font-variant-numeric:tabular-nums',
               'white-space:nowrap',
               'flex:none',
               'pointer-events:none',
             ].join(';')
-            target.appendChild(badge)
+            let rowIsFlex = true
+            try {
+              rowIsFlex = /flex|grid/.test(window.getComputedStyle(top).display)
+            } catch {
+              rowIsFlex = true
+            }
+            if (!rowIsFlex) {
+              if (!top.style.position) {
+                top.style.position = 'relative'
+                top.setAttribute(POS_ATTR, '')
+              }
+              badge.style.position = 'absolute'
+              badge.style.right = '8px'
+              badge.style.top = '50%'
+              badge.style.transform = 'translateY(-50%)'
+            }
+
+            // Keep any trailing check/icon in its place: the badge goes before it.
+            const last = top.lastElementChild
+            const trailingIcon =
+              last && last !== badge && !(last.textContent || '').trim() && last.tagName !== 'BR'
+            if (trailingIcon) top.insertBefore(badge, last)
+            else top.appendChild(badge)
           }
         }
       }
