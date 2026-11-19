@@ -306,15 +306,9 @@ window.__ModuleLoader__.load({
     }
     const costTone = (level) => (level <= 2 ? COST_COLOR.low : level === 3 ? COST_COLOR.mid : COST_COLOR.high)
 
-    /** Battery as text glyphs, so nothing has to be inserted into React nodes. */
-    const costGlyphs = (cost) => {
-      const level = costLevel(cost)
-      return '\u25a0'.repeat(level) + '\u25a1'.repeat(Math.max(0, 5 - level))
-    }
-
     const badgeText = (point, compact) => {
       if (!point) return ''
-      const parts = [costGlyphs(point.c), point.c === null || point.c === undefined ? '\u2014' : money(point.c)]
+      const parts = [point.c === null || point.c === undefined ? '\u2014' : money(point.c)]
       if (!compact) {
         parts.push('\u00b7', 'IQ ' + round(point.i))
         if (point.r) parts.push(point.r)
@@ -334,17 +328,27 @@ window.__ModuleLoader__.load({
       if (typeof document === 'undefined' || typeof MutationObserver === 'undefined') return () => {}
       let frame = 0
 
+      const cell = (index) => '3px ' + (5 + index * 1.5) + 'px'
       const css = [
         '[' + BADGE_ATTR + ']::after {',
         '  content: attr(' + BADGE_ATTR + ');',
         '  margin-inline-start: auto;',
         '  margin-inline-end: 4px;',
-        '  padding: 0 5px;',
+        '  padding: 0 6px 0 30px;',
         '  height: 16px;',
         '  display: inline-flex;',
         '  align-items: center;',
         '  border-radius: 8px;',
-        '  background: var(--dsw-alias-bg-layer-2);',
+        '  background-color: var(--dsw-alias-bg-layer-2);',
+        '  background-image:',
+        '    linear-gradient(var(--dsh-mi-1, transparent), var(--dsh-mi-1, transparent)),',
+        '    linear-gradient(var(--dsh-mi-2, transparent), var(--dsh-mi-2, transparent)),',
+        '    linear-gradient(var(--dsh-mi-3, transparent), var(--dsh-mi-3, transparent)),',
+        '    linear-gradient(var(--dsh-mi-4, transparent), var(--dsh-mi-4, transparent)),',
+        '    linear-gradient(var(--dsh-mi-5, transparent), var(--dsh-mi-5, transparent));',
+        '  background-size: ' + [0, 1, 2, 3, 4].map(cell).join(', ') + ';',
+        '  background-position: 4px bottom, 9px bottom, 14px bottom, 19px bottom, 24px bottom;',
+        '  background-repeat: no-repeat;',
         '  color: var(--dsh-mi-tone, var(--dsw-alias-label-secondary));',
         '  font-size: 10px;',
         '  line-height: 14px;',
@@ -364,19 +368,28 @@ window.__ModuleLoader__.load({
         if (host && host.appendChild) host.appendChild(style)
       }
 
+      const LEVEL_VARS = ['--dsh-mi-1', '--dsh-mi-2', '--dsh-mi-3', '--dsh-mi-4', '--dsh-mi-5']
+
       const strip = () => {
         for (const node of document.querySelectorAll('[' + BADGE_ATTR + ']')) {
           node.removeAttribute(BADGE_ATTR)
-          if (node.style && node.style.removeProperty) node.style.removeProperty('--dsh-mi-tone')
+          if (!node.style) continue
+          node.style.removeProperty('--dsh-mi-tone')
+          for (const name of LEVEL_VARS) node.style.removeProperty(name)
         }
       }
 
       const paint = (node, point, compact) => {
         if (!node || !point || !node.setAttribute) return
+        const level = costLevel(point.c)
+        const tone = costTone(level)
         node.setAttribute(BADGE_ATTR, badgeText(point, compact))
-        if (node.style && node.style.setProperty) {
-          node.style.setProperty('--dsh-mi-tone', costTone(costLevel(point.c)))
-        }
+        if (!node.style || !node.style.setProperty) return
+        node.style.setProperty('--dsh-mi-tone', tone)
+        // Filled cells take the price tone; the rest stay as a faint outline.
+        LEVEL_VARS.forEach((name, index) => {
+          node.style.setProperty(name, index < level ? tone : 'var(--dsw-alias-border-l1)')
+        })
       }
 
       const decorate = () => {
