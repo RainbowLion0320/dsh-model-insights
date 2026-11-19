@@ -306,75 +306,76 @@ window.__ModuleLoader__.load({
     }
     const costTone = (level) => (level <= 2 ? COST_COLOR.low : level === 3 ? COST_COLOR.mid : COST_COLOR.high)
 
-    const buildRowBadge = (point, inline, compact) => {
-      const badge = document.createElement('span')
-      badge.setAttribute(BADGE_ATTR, '')
-      badge.style.cssText = [
-        'margin-inline-start:' + (inline ? '4px' : 'auto'),
-        'padding:0 5px',
-        'height:16px',
-        'display:inline-flex',
-        'align-items:center',
-        'gap:4px',
-        'border-radius:8px',
-        'background:var(--dsw-alias-bg-layer-2)',
-        'color:var(--dsw-alias-label-secondary)',
-        'font-size:10px',
-        'line-height:14px',
-        'font-weight:600',
-        'font-variant-numeric:tabular-nums',
-        'white-space:nowrap',
-        'flex:none',
-        'pointer-events:none',
-      ].join(';')
-
-      const battery = document.createElement('span')
-      battery.style.cssText = 'display:inline-flex;gap:1px;align-items:flex-end;flex:none'
-      const level = costLevel(point.c)
-      for (let index = 0; index < 5; index++) {
-        const cell = document.createElement('span')
-        const filled = index < level
-        cell.style.cssText =
-          'width:3px;height:' +
-          (6 + index * 1.5) +
-          'px;border-radius:1px;box-sizing:border-box;' +
-          (filled
-            ? 'background:' + costTone(level) + ';'
-            : 'background:transparent;border:1px solid var(--dsw-alias-border-l2);')
-        battery.appendChild(cell)
-      }
-      badge.appendChild(battery)
-
-      const cost = document.createElement('span')
-      cost.textContent = point.c === null || point.c === undefined ? '—' : money(point.c)
-      if (level > 0) cost.style.color = costTone(level)
-      badge.appendChild(cost)
-
-      if (!compact) {
-        const sep = document.createElement('span')
-        sep.textContent = '·'
-        sep.style.opacity = '0.45'
-        badge.appendChild(sep)
-
-        const score = document.createElement('span')
-        score.textContent = 'IQ ' + round(point.i) + ' ' + (point.r || '—')
-        badge.appendChild(score)
-      }
-
-      return badge
+    /** Battery as text glyphs, so nothing has to be inserted into React nodes. */
+    const costGlyphs = (cost) => {
+      const level = costLevel(cost)
+      return '\u25a0'.repeat(level) + '\u25a1'.repeat(Math.max(0, 5 - level))
     }
 
+    const badgeText = (point, compact) => {
+      if (!point) return ''
+      const parts = [costGlyphs(point.c), point.c === null || point.c === undefined ? '\u2014' : money(point.c)]
+      if (!compact) {
+        parts.push('\u00b7', 'IQ ' + round(point.i))
+        if (point.r) parts.push(point.r)
+      }
+      return parts.filter(Boolean).join(' ')
+    }
+
+    const STYLE_ID = 'dsh-model-insights-style'
+
+    /**
+     * Decorate the native reasoning menu without touching React's tree: the row
+     * gets a data attribute and a stylesheet renders it as an ::after pill. Text
+     * nodes are never inserted, so a re-render cannot orphan or misplace a badge
+     * (which is what pushed the pill above the menu before).
+     */
     const installEffortBadges = () => {
       if (typeof document === 'undefined' || typeof MutationObserver === 'undefined') return () => {}
       let frame = 0
 
-      const POS_ATTR = 'data-dsh-model-insights-anchor'
+      const css = [
+        '[' + BADGE_ATTR + ']::after {',
+        '  content: attr(' + BADGE_ATTR + ');',
+        '  margin-inline-start: auto;',
+        '  margin-inline-end: 4px;',
+        '  padding: 0 5px;',
+        '  height: 16px;',
+        '  display: inline-flex;',
+        '  align-items: center;',
+        '  border-radius: 8px;',
+        '  background: var(--dsw-alias-bg-layer-2);',
+        '  color: var(--dsh-mi-tone, var(--dsw-alias-label-secondary));',
+        '  font-size: 10px;',
+        '  line-height: 14px;',
+        '  font-weight: 600;',
+        '  font-variant-numeric: tabular-nums;',
+        '  white-space: nowrap;',
+        '  flex: none;',
+        '  pointer-events: none;',
+        '}',
+      ].join('\n')
+
+      if (!document.getElementById(STYLE_ID)) {
+        const style = document.createElement('style')
+        style.setAttribute('id', STYLE_ID)
+        style.textContent = css
+        const host = document.head || document.body
+        if (host && host.appendChild) host.appendChild(style)
+      }
+
       const strip = () => {
-        for (const node of document.querySelectorAll('[' + BADGE_ATTR + ']')) node.remove()
-        for (const node of document.querySelectorAll('[' + POS_ATTR + ']')) {
-          node.style.position = ''
-          node.style.paddingRight = ''
-          node.removeAttribute(POS_ATTR)
+        for (const node of document.querySelectorAll('[' + BADGE_ATTR + ']')) {
+          node.removeAttribute(BADGE_ATTR)
+          if (node.style && node.style.removeProperty) node.style.removeProperty('--dsh-mi-tone')
+        }
+      }
+
+      const paint = (node, point, compact) => {
+        if (!node || !point || !node.setAttribute) return
+        node.setAttribute(BADGE_ATTR, badgeText(point, compact))
+        if (node.style && node.style.setProperty) {
+          node.style.setProperty('--dsh-mi-tone', costTone(costLevel(point.c)))
         }
       }
 
@@ -386,99 +387,36 @@ window.__ModuleLoader__.load({
         const points = new Map(row.pts.map((p) => [(p.e || 'default').toLowerCase(), p]))
         const menuSelector =
           '[role="menu"], [role="listbox"], [data-radix-popper-content-wrapper], [data-state="open"]'
-        const found = document.querySelectorAll(menuSelector)
-        const roots = Array.from(found)
         const norm = (value) =>
           String(value || '')
             .replace(/[\s\u2713\u2714]/g, '')
             .toLowerCase()
-
         const LABELS = Array.from(EFFORT_LABELS)
 
-        for (const root of roots) {
-          // Only a row whose entire text is the effort name is an option row.
-          // The root menu's "reasoning level" row also contains an effort name
-          // ("… Max ›"), and decorating it covered its own value and chevron.
-          const candidates = new Map()
-          for (const node of root.querySelectorAll('*')) {
+        // Option rows: a row whose whole text is one effort name. Summary rows
+        // such as "Reasoning level … Max ›" are left alone on purpose.
+        for (const root of document.querySelectorAll(menuSelector)) {
+          const items = root.querySelectorAll('[role="menuitem"], [role="menuitemradio"], [role="option"]')
+          for (const node of items) {
             const label = norm(node.textContent)
-            if (!label || label.length > 12) continue
             const key = LABELS.find((value) => label === value)
-            if (key) candidates.set(node, key)
-          }
-
-          const decorated = new Set()
-          for (const [node, key] of candidates) {
-            // Climb through wrappers whose text is still exactly the label, so
-            // the badge lands on the option row rather than inside the label.
-            let top = node
-            while (top.parentElement && top.parentElement !== root && candidates.get(top.parentElement) === key) {
-              top = top.parentElement
-            }
-            const row = top.parentElement && top.parentElement !== root ? top.parentElement : top
-            if (decorated.has(row)) continue
-            decorated.add(row)
-            if (row.querySelector && row.querySelector('[' + BADGE_ATTR + ']')) continue
-            const point = points.get(key)
-            if (!point) continue
-
-            // A row that also carries other text is the summary row ("Reasoning
-            // level … Max ›"). Put a compact badge before its value instead of
-            // appending to the row, which covered the value and the chevron.
-            if (norm(row.textContent) !== key) {
-              if (row === top) continue
-              const summary = buildRowBadge(point, true, true)
-              summary.style.marginInlineStart = 'auto'
-              summary.style.marginInlineEnd = '4px'
-              row.insertBefore(summary, top)
-              continue
-            }
-
-            const badge = buildRowBadge(point)
-            let rowIsFlex = true
-            try {
-              rowIsFlex = /flex|grid/.test(window.getComputedStyle(row).display)
-            } catch {
-              rowIsFlex = true
-            }
-            if (rowIsFlex) {
-              // Reserve the space instead of letting the badge sit on top of the label.
-              row.insertBefore(badge, row.lastElementChild && !(row.lastElementChild.textContent || '').trim() ? row.lastElementChild : null)
-            } else {
-              if (!row.style.position) {
-                row.style.position = 'relative'
-                row.setAttribute(POS_ATTR, '')
-              }
-              row.style.paddingRight = '66px'
-              row.setAttribute(POS_ATTR, '')
-              badge.style.position = 'absolute'
-              badge.style.right = '8px'
-              badge.style.top = '50%'
-              badge.style.transform = 'translateY(-50%)'
-              row.appendChild(badge)
-            }
+            if (!key) continue
+            paint(node, points.get(key), false)
           }
         }
 
-        // Collapsed composer: the effort chip beside the model name keeps its
-        // grade. Our own label carries data-dsh-mi-name, so this looks only at
-        // the toolbar around it instead of scanning the whole document.
+        // Collapsed composer: the effort chip beside our own model label.
         for (const anchor of document.querySelectorAll('[data-dsh-mi-name]')) {
           let scope = anchor
           for (let depth = 0; depth < 6 && scope.parentElement; depth++) scope = scope.parentElement
           for (const node of scope.querySelectorAll('*')) {
-            if (node === anchor) continue
-            if (node.contains && node.contains(anchor)) continue
-            if (node.querySelector && node.querySelector('[' + BADGE_ATTR + ']')) continue
+            if (node === anchor || (node.contains && node.contains(anchor))) continue
             if (node.closest && node.closest(menuSelector)) continue
             const text = (node.textContent || '').trim()
             if (!text || text.length > 12) continue
             const key = LABELS.find((value) => text.toLowerCase() === value)
             if (!key) continue
-            const point = points.get(key)
-            if (!point) continue
-            const badge = buildRowBadge(point, true)
-            node.appendChild(badge)
+            paint(node, points.get(key), false)
             break
           }
         }
@@ -499,7 +437,6 @@ window.__ModuleLoader__.load({
         strip()
       }
     }
-
     return {
       inject: ['slots', 'locale'],
       apply(ctx) {
