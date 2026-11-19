@@ -330,7 +330,7 @@ window.__ModuleLoader__.load({
       if (typeof document === 'undefined' || typeof MutationObserver === 'undefined') return () => {}
       let frame = 0
 
-      const cell = (index) => '3px ' + (5 + index * 1.5) + 'px'
+      const cell = (index) => '3px ' + (4.5 + index * 1.5) + 'px'
 
       // Everything the pill needs lives in stylesheet rules keyed by attributes.
       // Inline custom properties would be wiped whenever React rewrites a row's
@@ -353,7 +353,7 @@ window.__ModuleLoader__.load({
         '    linear-gradient(var(--c4, transparent), var(--c4, transparent)),',
         '    linear-gradient(var(--c5, transparent), var(--c5, transparent));',
         '  background-size: ' + [0, 1, 2, 3, 4].map(cell).join(', ') + ';',
-        '  background-position: 4px bottom, 9px bottom, 14px bottom, 19px bottom, 24px bottom;',
+        '  background-position: 4px calc(100% - 3px), 9px calc(100% - 3px), 14px calc(100% - 3px), 19px calc(100% - 3px), 24px calc(100% - 3px);',
         '  background-repeat: no-repeat;',
         '  color: var(--fill, var(--dsw-alias-label-secondary));',
         '  font-size: 10px;',
