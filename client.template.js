@@ -286,6 +286,8 @@ window.__ModuleLoader__.load({
      */
     const EFFORT_LABELS = new Set(['default', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'])
     const BADGE_ATTR = 'data-dsh-model-insights'
+    const LEVEL_ATTR = 'data-dsh-mi-level'
+    const TONE_ATTR = 'data-dsh-mi-tone'
 
 
     /** Cost shown the way a phone shows battery: five cells, log-scaled. */
@@ -329,6 +331,10 @@ window.__ModuleLoader__.load({
       let frame = 0
 
       const cell = (index) => '3px ' + (5 + index * 1.5) + 'px'
+
+      // Everything the pill needs lives in stylesheet rules keyed by attributes.
+      // Inline custom properties would be wiped whenever React rewrites a row's
+      // style attribute, which left the text pill behind with no bars.
       const css = [
         '[' + BADGE_ATTR + ']::after {',
         '  content: attr(' + BADGE_ATTR + ');',
@@ -341,15 +347,15 @@ window.__ModuleLoader__.load({
         '  border-radius: 8px;',
         '  background-color: var(--dsw-alias-bg-layer-2);',
         '  background-image:',
-        '    linear-gradient(var(--dsh-mi-1, transparent), var(--dsh-mi-1, transparent)),',
-        '    linear-gradient(var(--dsh-mi-2, transparent), var(--dsh-mi-2, transparent)),',
-        '    linear-gradient(var(--dsh-mi-3, transparent), var(--dsh-mi-3, transparent)),',
-        '    linear-gradient(var(--dsh-mi-4, transparent), var(--dsh-mi-4, transparent)),',
-        '    linear-gradient(var(--dsh-mi-5, transparent), var(--dsh-mi-5, transparent));',
+        '    linear-gradient(var(--c1, transparent), var(--c1, transparent)),',
+        '    linear-gradient(var(--c2, transparent), var(--c2, transparent)),',
+        '    linear-gradient(var(--c3, transparent), var(--c3, transparent)),',
+        '    linear-gradient(var(--c4, transparent), var(--c4, transparent)),',
+        '    linear-gradient(var(--c5, transparent), var(--c5, transparent));',
         '  background-size: ' + [0, 1, 2, 3, 4].map(cell).join(', ') + ';',
         '  background-position: 4px bottom, 9px bottom, 14px bottom, 19px bottom, 24px bottom;',
         '  background-repeat: no-repeat;',
-        '  color: var(--dsh-mi-tone, var(--dsw-alias-label-secondary));',
+        '  color: var(--fill, var(--dsw-alias-label-secondary));',
         '  font-size: 10px;',
         '  line-height: 14px;',
         '  font-weight: 600;',
@@ -358,6 +364,19 @@ window.__ModuleLoader__.load({
         '  flex: none;',
         '  pointer-events: none;',
         '}',
+        '[' + BADGE_ATTR + '] {',
+        '  --empty: var(--dsw-alias-border-l2);',
+        '  --c1: var(--empty); --c2: var(--empty); --c3: var(--empty);',
+        '  --c4: var(--empty); --c5: var(--empty);',
+        '}',
+        '[' + LEVEL_ATTR + '="1"] { --c1: var(--fill); }',
+        '[' + LEVEL_ATTR + '="2"] { --c1: var(--fill); --c2: var(--fill); }',
+        '[' + LEVEL_ATTR + '="3"] { --c1: var(--fill); --c2: var(--fill); --c3: var(--fill); }',
+        '[' + LEVEL_ATTR + '="4"] { --c1: var(--fill); --c2: var(--fill); --c3: var(--fill); --c4: var(--fill); }',
+        '[' + LEVEL_ATTR + '="5"] { --c1: var(--fill); --c2: var(--fill); --c3: var(--fill); --c4: var(--fill); --c5: var(--fill); }',
+        '[' + TONE_ATTR + '="low"] { --fill: var(--dsw-alias-state-success-primary); }',
+        '[' + TONE_ATTR + '="mid"] { --fill: var(--dsw-alias-state-warn-primary); }',
+        '[' + TONE_ATTR + '="high"] { --fill: var(--dsw-alias-state-error-primary); }',
       ].join('\n')
 
       if (!document.getElementById(STYLE_ID)) {
@@ -368,28 +387,20 @@ window.__ModuleLoader__.load({
         if (host && host.appendChild) host.appendChild(style)
       }
 
-      const LEVEL_VARS = ['--dsh-mi-1', '--dsh-mi-2', '--dsh-mi-3', '--dsh-mi-4', '--dsh-mi-5']
-
       const strip = () => {
         for (const node of document.querySelectorAll('[' + BADGE_ATTR + ']')) {
           node.removeAttribute(BADGE_ATTR)
-          if (!node.style) continue
-          node.style.removeProperty('--dsh-mi-tone')
-          for (const name of LEVEL_VARS) node.style.removeProperty(name)
+          node.removeAttribute(LEVEL_ATTR)
+          node.removeAttribute(TONE_ATTR)
         }
       }
 
       const paint = (node, point, compact) => {
         if (!node || !point || !node.setAttribute) return
-        const level = costLevel(point.c)
-        const tone = costTone(level)
+        const level = Math.max(1, Math.min(5, costLevel(point.c)))
         node.setAttribute(BADGE_ATTR, badgeText(point, compact))
-        if (!node.style || !node.style.setProperty) return
-        node.style.setProperty('--dsh-mi-tone', tone)
-        // Filled cells take the price tone; the rest stay as a faint outline.
-        LEVEL_VARS.forEach((name, index) => {
-          node.style.setProperty(name, index < level ? tone : 'var(--dsw-alias-border-l1)')
-        })
+        node.setAttribute(LEVEL_ATTR, String(level))
+        node.setAttribute(TONE_ATTR, level <= 2 ? 'low' : level === 3 ? 'mid' : 'high')
       }
 
       const decorate = () => {
